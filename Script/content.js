@@ -6,10 +6,34 @@ class YouTubeAdTracker {
     this.lastAdData = null;
     this.initAdObserver();
     this.checkRegistrationAndInit();
+    this.isUserRegistered();
+  }
+
+  // checkRegistration() {
+  //   return new Promise((resolve) => {
+  //     chrome.runtime.sendMessage({ type: "CHECK_REGISTRATION" }, (response) => {
+  //       console.log("check 2", resolve(response?.registered));
+  //       resolve(response?.registered || false);
+  //       // if (chrome.runtime.lastError) {
+  //       //   console.warn(
+  //       //     "Extension context invalidated:",
+  //       //     chrome.runtime.lastError
+  //       //   );
+  //       //   resolve(false);
+  //       // } else {
+  //       //   resolve(response?.registered || false);
+  //       // }
+  //     });
+  //   });
+  // }
+
+  async isUserRegistered() {
+    const userData = await chrome.storage.local.get("ifatFormData");
+    return !!userData.ifatFormData;
   }
 
   async checkRegistrationAndInit() {
-    const registered = await this.checkRegistration();
+    const registered = await this.isUserRegistered();
     if (registered) {
       this.sponsoredAds = [];
       this.lastAdData = null;
@@ -19,32 +43,14 @@ class YouTubeAdTracker {
     }
   }
 
-  checkRegistration() {
-    return new Promise(resolve => {
-      chrome.runtime.sendMessage(
-        { type: "CHECK_REGISTRATION" },
-        response => {
-          if (chrome.runtime.lastError) {
-            console.warn("Extension context invalidated:", chrome.runtime.lastError);
-            resolve(false);
-          } else {
-            resolve(response?.registered || false);
-          }
-        }
-      );
-    });
-  }
-
   initAdObserver() {
     if (!document.body) {
       setTimeout(() => this.initAdObserver(), 10000);
       return;
     }
-
-    this.observer = new MutationObserver(mutations => 
+    this.observer = new MutationObserver((mutations) =>
       this.handleMutations(mutations)
     );
-
     this.observer.observe(document.body, {
       childList: true,
       subtree: true,
@@ -54,7 +60,7 @@ class YouTubeAdTracker {
   }
 
   handleMutations(mutations) {
-    mutations.forEach(mutation => {
+    mutations.forEach((mutation) => {
       if (this.isAdMutation(mutation)) {
         this.processAd();
       }
@@ -62,10 +68,12 @@ class YouTubeAdTracker {
   }
 
   isAdMutation(mutation) {
-    return mutation.target.querySelector?.(".ytp-ad-player-overlay-layout") || 
-           [...mutation.addedNodes].some(node => 
-             node.querySelector?.(".ytp-ad-player-overlay-layout")
-           );
+    return (
+      mutation.target.querySelector?.(".ytp-ad-player-overlay-layout") ||
+      [...mutation.addedNodes].some((node) =>
+        node.querySelector?.(".ytp-ad-player-overlay-layout")
+      )
+    );
   }
 
   async processAd() {
@@ -92,15 +100,15 @@ class YouTubeAdTracker {
   }
 
   async getUserFormData() {
-    return new Promise(resolve => {
-      chrome.storage.local.get("ifatFormData", result => {
+    return new Promise((resolve) => {
+      chrome.storage.local.get("ifatFormData", (result) => {
         resolve(result.ifatFormData || {});
       });
     });
   }
 
   getAdvertiserInfo() {
-    const getElementData = (selector, prop = 'textContent') => {
+    const getElementData = (selector, prop = "textContent") => {
       const el = document.querySelector(selector);
       return el ? el[prop]?.trim() : null;
     };
@@ -122,11 +130,10 @@ class YouTubeAdTracker {
 
   getCurrentVideoInfo() {
     const videoId = new URLSearchParams(window.location.search).get("v");
-    const getTextContent = selector => {
+    const getTextContent = (selector) => {
       const el = document.querySelector(selector);
       return el?.textContent.trim();
     };
-
     return {
       videoId,
       title: getTextContent("h1.ytd-watch-metadata > yt-formatted-string"),
@@ -153,21 +160,16 @@ class YouTubeAdTracker {
       console.warn("Extension runtime is not available");
       return;
     }
-
     chrome.runtime.sendMessage(
-      { type: "YTD_SPONCERED_DATA", data: adData },
-      response => {
-        if (chrome.runtime.lastError) {
-          console.warn("Extension context invalidated:", chrome.runtime.lastError);
-        }
-      }
-    );
-  }
+      { type: "YTD_SPONCERED_DATA", data: adData });
+}
 
   isExtensionValid() {
-    return typeof chrome !== "undefined" && 
-           chrome.runtime && 
-           chrome.runtime.sendMessage;
+    return (
+      typeof chrome !== "undefined" &&
+      chrome.runtime &&
+      chrome.runtime.sendMessage
+    );
   }
 
   captureAdContent() {

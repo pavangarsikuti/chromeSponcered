@@ -50,35 +50,37 @@ class BackgroundService {
   }
 
   static setupMessageListener() {
-    chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-      switch (message.type) {
-        case "YTD_SPONCERED_DATA":
-          try {
-            const registered = await this.isUserRegistered();
-            if (registered) {
-              await this.handleAdData(message.data);
-              sendResponse({ success: true });
-            } else {
-              sendResponse({ success: false, error: "User not registered" });
+    chrome.runtime.onMessage.addListener(
+      async (message, sender, sendResponse) => {
+        switch (message.type) {
+          case "YTD_SPONCERED_DATA":
+            try {
+              const registered = await this.isUserRegistered();
+              if (registered) {
+                await this.handleAdData(message.data);
+                sendResponse({ success: true });
+              } else {
+                sendResponse({ success: false, error: "User not registered" });
+              }
+            } catch (error) {
+              sendResponse({ success: false, error: error.message });
             }
-          } catch (error) {
-            sendResponse({ success: false, error: error.message });
-          }
-          return true;
+            return true;
 
-        case "CHECK_REGISTRATION":
-          try {
-            const registered = await this.isUserRegistered();
-            sendResponse({ registered });
-          } catch (error) {
-            sendResponse({ registered: false });
-          }
-          return true;
+          case "CHECK_REGISTRATION":
+            try {
+              const registered = await this.isUserRegistered();
+              sendResponse({ registered });
+            } catch (error) {
+              sendResponse({ registered: false });
+            }
+            return true;
 
-        default:
-          break;
+          default:
+            break;
+        }
       }
-    });
+    );
   }
 
   static async handleAdData(adData) {
@@ -121,14 +123,14 @@ class BackgroundService {
         birth_date: birthDate,
         code: userFormData.code,
         gender: userFormData.gender,
-        id: "269234e4-5ee3-2ced-6a52-d901b40db585",
+        id: "269234e4-5ee3-2ced-6a52-d901b40db585", //we are not getting user id from api so we are using static ID
         lang: userFormData.lang,
         location: userFormData.location,
         panel_id: userFormData.panel_id,
         serial_num: userFormData.serial_num,
         serial_num1: userFormData.serial_num1
       },
-      site: "youtube.com"
+      site: "youtube.com" // Currently we are working on youtube so i made it static in future i will make it dynamic
     };
   }
 

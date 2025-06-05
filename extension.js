@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       const location = document.querySelector(
         "input[name='location']:checked"
       )?.value;
-      const code = "198901";
+      const code = "198901";// We sre not aware of what value we have to pass
       const serial_num =
         document.getElementById("serial_num")?.value || "UNKNOWN";
       const serial_num1 =

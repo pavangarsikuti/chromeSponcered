@@ -10,9 +10,7 @@
     "scripting",
     "tabs",
     "webNavigation",
-    "storage",
-    "webRequest",
-    "scripting"
+    "webRequest"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
@@ -30,14 +28,13 @@
   },
 
   "host_permissions": [
-    "http://*/*",
-    "https://*/*",
-    "https://panelads.ifat.com/*"
+    "https://panelads.ifat.com/*",
+    "http://10.40.2.63:9008/*"
   ],
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*", "http://*/*", "https://*/*"],
-      "js": ["Script/content.js","extension.js"],
+      "matches": ["*://*.youtube.com/*", "http://10.40.2.63:9008/*"],
+      "js": ["Script/content.js", "extension.js"],
       "run_at": "document_start"
     }
   ],
@@ -45,11 +42,5 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["Script/content.js"],
-      "matches": ["*://*.youtube.com/*"]
-    }
-  ]
+  }
 }
