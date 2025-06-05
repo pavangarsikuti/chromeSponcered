@@ -5,6 +5,34 @@ class YouTubeAdTracker {
     this.sponsoredAds = [];
     this.lastAdData = null;
     this.initAdObserver();
+    this.checkRegistrationAndInit();
+  }
+
+  async checkRegistrationAndInit() {
+    const registered = await this.checkRegistration();
+    if (registered) {
+      this.sponsoredAds = [];
+      this.lastAdData = null;
+      this.initAdObserver();
+    } else {
+      console.log("User not registered - ad tracking disabled");
+    }
+  }
+
+  checkRegistration() {
+    return new Promise(resolve => {
+      chrome.runtime.sendMessage(
+        { type: "CHECK_REGISTRATION" },
+        response => {
+          if (chrome.runtime.lastError) {
+            console.warn("Extension context invalidated:", chrome.runtime.lastError);
+            resolve(false);
+          } else {
+            resolve(response?.registered || false);
+          }
+        }
+      );
+    });
   }
 
   initAdObserver() {

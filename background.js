@@ -12,6 +12,7 @@ class BackgroundService {
 
   static init() {
     this.setupInstallListener();
+    this.isUserRegistered();
     this.setupMessageListener();
     this.logStartupInfo();
   }
@@ -31,13 +32,51 @@ class BackgroundService {
     });
   }
 
+  // static setupMessageListener() {
+  //   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  //     if (message.type === "YTD_SPONCERED_DATA") {
+  //       this.handleAdData(message.data)
+  //         .then(() => sendResponse({ success: true }))
+  //         .catch((error) => sendResponse({ success: false, error }));
+  //       return true;
+  //     }
+  //   });
+  // }
+
+  // Add this at the top of background.js
+  static async isUserRegistered() {
+    const userData = await chrome.storage.local.get("ifatFormData");
+    return !!userData.ifatFormData;
+  }
+
   static setupMessageListener() {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.type === "YTD_SPONCERED_DATA") {
-        this.handleAdData(message.data)
-          .then(() => sendResponse({ success: true }))
-          .catch((error) => sendResponse({ success: false, error }));
-        return true;
+    chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+      switch (message.type) {
+        case "YTD_SPONCERED_DATA":
+          try {
+            const registered = await this.isUserRegistered();
+            if (registered) {
+              await this.handleAdData(message.data);
+              sendResponse({ success: true });
+            } else {
+              sendResponse({ success: false, error: "User not registered" });
+            }
+          } catch (error) {
+            sendResponse({ success: false, error: error.message });
+          }
+          return true;
+
+        case "CHECK_REGISTRATION":
+          try {
+            const registered = await this.isUserRegistered();
+            sendResponse({ registered });
+          } catch (error) {
+            sendResponse({ registered: false });
+          }
+          return true;
+
+        default:
+          break;
       }
     });
   }
