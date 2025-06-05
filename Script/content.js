@@ -9,23 +9,6 @@ class YouTubeAdTracker {
     this.isUserRegistered();
   }
 
-  // checkRegistration() {
-  //   return new Promise((resolve) => {
-  //     chrome.runtime.sendMessage({ type: "CHECK_REGISTRATION" }, (response) => {
-  //       console.log("check 2", resolve(response?.registered));
-  //       resolve(response?.registered || false);
-  //       // if (chrome.runtime.lastError) {
-  //       //   console.warn(
-  //       //     "Extension context invalidated:",
-  //       //     chrome.runtime.lastError
-  //       //   );
-  //       //   resolve(false);
-  //       // } else {
-  //       //   resolve(response?.registered || false);
-  //       // }
-  //     });
-  //   });
-  // }
 
   async isUserRegistered() {
     const userData = await chrome.storage.local.get("ifatFormData");
