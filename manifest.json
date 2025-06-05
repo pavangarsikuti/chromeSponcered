@@ -1,0 +1,55 @@
+{
+  "name": "Ifat Bakarat Pirsumm",
+  "version": "2.0",
+  "manifest_version": 3,
+  "description": "תוסף רייטינג של חברת יפעת",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage",
+    "scripting",
+    "tabs",
+    "webNavigation",
+    "storage",
+    "webRequest",
+    "scripting"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "https://panelads.ifat.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "http://*/*", "https://*/*"],
+      "js": ["Script/content.js","extension.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["Script/content.js"],
+      "matches": ["*://*.youtube.com/*"]
+    }
+  ]
+}
