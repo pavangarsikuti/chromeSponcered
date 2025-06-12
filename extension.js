@@ -1,7 +1,7 @@
 console.log("extension.js is loaded");
 
 const CONFIG = {
-  BASE_URL: "http://10.40.2.63:9008"
+  BASE_URL: "http://172.20.20.72:9008"
 };
 
 const storage = {
@@ -14,7 +14,6 @@ const storage = {
   }
 };
 
-let pageLoadingStartedTs = new Date().getTime() / 1000;
 
 async function onFocus() {
   await storage.set("currentUrl", window.location.href);
@@ -62,14 +61,16 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
       }
       try {
-        const response = await fetch(
-          `${CONFIG.BASE_URL}/PanelAds/GetOriginalPanel?s0=${serial_num}&s1=${serial_num1}`
-        );
-        const data = await response.text();
+        // const response = await fetch(
+        //   `${CONFIG.BASE_URL}/PanelAds/GetOriginalPanel?s0=${serial_num}&s1=${serial_num1}`
+        // );
+        // const data = await response.text();
 
-        if (data && !isNaN(data)) {
-          panel_id = data;
-        }
+        // console.log("data after register",response)
+
+        // if (data && !isNaN(data)) {
+        //   panel_id = data;
+        // }
 
         const user = {
           id: guid(),
@@ -79,11 +80,11 @@ document.addEventListener("DOMContentLoaded", async function () {
           code: code,
           serial_num: serial_num,
           serial_num1: serial_num1,
-          panel_id: panel_id,
+          // panel_id: panel_id,
           lang: lang
         };
 
-        await chrome.storage.sync.set({ user: user });
+       chrome.storage.local.set({ user: user });
         chrome.runtime.sendMessage({
           event_type: "install",
           user: user,
