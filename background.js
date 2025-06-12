@@ -64,8 +64,6 @@ class BackgroundService {
     });
   }
 
-<<<<<<< Updated upstream
-=======
   static setupAdDetection() {
     // Initialize storage for ad logs
     chrome.storage.local.get(["adLogs"], (result) => {
@@ -188,7 +186,6 @@ class BackgroundService {
     return !!userData.ifatFormData;
   }
 
->>>>>>> Stashed changes
   static setupMessageListener() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === "YTD_SPONCERED_DATA") {
@@ -317,11 +314,7 @@ class BackgroundService {
         serial_num: userFormData.serial_num,
         serial_num1: userFormData.serial_num1
       },
-<<<<<<< Updated upstream
-      site: "youtube.com"
-=======
       site: site // Now dynamic based on initiator
->>>>>>> Stashed changes
     };
   }
 

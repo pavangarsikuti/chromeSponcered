@@ -32,14 +32,6 @@
   "host_permissions": [
     "http://*/*",
     "https://*/*",
-<<<<<<< Updated upstream
-    "https://panelads.ifat.com/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": ["*://*.youtube.com/*", "http://*/*", "https://*/*"],
-      "js": ["Script/content.js","extension.js"],
-=======
     "https://panelads.ifat.com/*",
     "http://10.40.2.63:9008/*"
   ],
@@ -52,7 +44,6 @@
         "https://*/*"
       ],
       "js": ["Script/content.js", "extension.js"],
->>>>>>> Stashed changes
       "run_at": "document_start"
     }
   ],
