@@ -72,9 +72,34 @@ class BackgroundService {
       }
     });
 
-    // Main ad detection listener
     chrome.webRequest.onBeforeRequest.addListener(
-      (details) => this.detectNetworkAd(details),
+      (details) => {
+        const pageUrl = details.initiator || details.documentUrl;
+        if (!pageUrl) return;
+
+        const pageDomain = new URL(pageUrl).hostname.replace(/^www\./, "");
+        const ALLOWED_DOMAINS = [
+          "10.tv",
+          "walla.co.il",
+          "ynet.co.il",
+          "youtube.com",
+          "sport5.co.il",
+          "one.co.il",
+          "nana10.co.il",
+          "tapuz.co.il",
+          "mako.co.il",
+          "reshet.tv",
+          "13tv.co.il",
+          "xnet.ynet.co.il"
+        ];
+
+        if (!ALLOWED_DOMAINS.includes(pageDomain)) {
+          return;
+        }
+        this.detectNetworkAd(details);
+        // Continue detecting ads
+        console.log("Allowed site, checking for ad:", details.url);
+      },
       { urls: ["<all_urls>"] }
     );
 
@@ -90,6 +115,16 @@ class BackgroundService {
     const isAd = this.AD_PATTERNS.some((pattern) => pattern.test(details.url));
     if (isAd) {
       this.processDetectedAd(details);
+    }
+  }
+
+  static extractDomain(url) {
+    try {
+      const domain = new URL(url).hostname;
+      console.log(new URL(url));
+      return domain.replace(/^www\./, "");
+    } catch {
+      return "";
     }
   }
 
@@ -141,15 +176,6 @@ class BackgroundService {
     }
   }
 
-  static extractDomain(url) {
-    try {
-      const domain = new URL(url).hostname;
-      return domain.replace(/^www\./, "");
-    } catch {
-      return "";
-    }
-  }
-
   static detectAdNetwork(url) {
     const networkMap = {
       "flashtalking.com": "Flashtalking",
@@ -169,17 +195,6 @@ class BackgroundService {
     return "Unknown";
   }
 
-  // static setupMessageListener() {
-  //   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  //     if (message.type === "YTD_SPONCERED_DATA") {
-  //       this.handleAdData(message.data)
-  //         .then(() => sendResponse({ success: true }))
-  //         .catch((error) => sendResponse({ success: false, error }));
-  //       return true;
-  //     }
-  //   });
-  // }
-
   // Add this at the top of background.js
   static async isUserRegistered() {
     const userData = await chrome.storage.local.get("ifatFormData");
@@ -196,58 +211,6 @@ class BackgroundService {
       }
     });
   }
-
-  // static async handleAdData(adData) {
-  //   console.log("Processing YouTube ad data:", adData);
-
-  //   const { advertiser, videoData, userFormData, timestamp } = adData;
-  //   const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
-
-  //   const adEventData = this.createAdEventPayload(
-  //     adData.type,
-  //     advertiser,
-  //     videoData,
-  //     userFormData,
-  //     unixTimestamp
-  //   );
-
-  //   await this.sendAdEvent(adEventData);
-  // }
-
-  // static createAdEventPayload(
-  //   type,
-  //   advertiser,
-  //   videoData,
-  //   userFormData,
-  //   timestamp
-  // ) {
-  //   console.log("user data",userFormData)
-  //   const birthDate = this.formatBirthDate(userFormData);
-  //   return {
-  //     event_type: type,
-  //     // ad_url: advertiser.url,
-  //     ad_url: videoData.url, // We are dublicate data of video content URl
-  //     content_url: videoData.url,
-  //     ad_type: "preroll",
-  //     timestamp,
-  //     app_version: this.manifest.version,
-  //     browser: this.browserInfo.browserName,
-  //     browser_version: this.browserInfo.chromeVersion,
-  //     os: this.browserInfo.os,
-  //     user: {
-  //       birth_date: birthDate,
-  //       code: userFormData.code,
-  //       gender: userFormData.gender,
-  //       id: "269234e4-5ee3-2ced-6a52-d901b40db585", //we are not getting user id from api so we are using static ID
-  //       lang: userFormData.lang,
-  //       location: userFormData.location,
-  //       panel_id: userFormData.panel_id,
-  //       serial_num: userFormData.serial_num,
-  //       serial_num1: userFormData.serial_num1
-  //     },
-  //     site: "youtube.com" // Currently we are working on youtube so i made it static in future i will make it dynamic
-  //   };
-  // }
 
   static async handleAdData(adData) {
     console.log("Processing ad data:", adData);
@@ -267,7 +230,7 @@ class BackgroundService {
       },
       {
         url: initiator || "unknown" // Use the initiator as content URL
-      },
+      }
     );
 
     await this.sendAdEvent(adEventData);
@@ -372,17 +335,8 @@ class BackgroundService {
     )}`;
   }
 
-  // static formatBirthDate({ dob_year, dob_month, dob_day }) {
-  //   if (!dob_year || !dob_month || !dob_day) {
-  //     throw new Error("Invalid birth date data");
-  //   }
-  //   const month = String(dob_month).padStart(2, "0");
-  //   const day = String(dob_day).padStart(2, "0");
-  //   return `${dob_year}-${month}-${day}`;
-  // }
-
   static async sendAdEvent(payload) {
-    console.log("payload",payload)
+    console.log("payload", payload);
     try {
       const response = await fetch(`${CONFIG.BASE_URL}${CONFIG.API_ENDPOINT}`, {
         method: "POST",
