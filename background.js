@@ -64,6 +64,12 @@ class BackgroundService {
     });
   }
 
+  // Add this at the top of background.js
+  static async isUserRegistered() {
+    const userData = await chrome.storage.local.get("ifatFormData");
+    return !!userData.ifatFormData;
+  }
+
   static async getIfatFormData() {
     return new Promise((resolve, reject) => {
       chrome.storage.local.get("ifatFormData", (result) => {
@@ -204,24 +210,34 @@ class BackgroundService {
           }
         }
 
-        if (Sitelocation.hostname.indexOf("youtube.com") !== -1 && ad_url) {
-          console.log("check ytd1");
-          (async () => {
-            console.log("check ytd2");
+        (async () => {
+          const registered = await this.isUserRegistered();
 
-            const userData = await BackgroundService.getIfatFormData();
-            const payload = BackgroundService.createAdEventPayload(
-              "Sponcered",
-              ad_url,
-              content_murl,
-              userData,
-              request.timeStamp
-            );
-            console.log("check ytd3", payload);
+          if (
+            registered &&
+            Sitelocation.hostname.includes("youtube.com") &&
+            ad_url
+          ) {
+            console.log("check ytd1");
 
-            await BackgroundService.sendAdEvent(payload);
-          })();
-        }
+            try {
+              const userData = await BackgroundService.getIfatFormData();
+              const payload = BackgroundService.createAdEventPayload(
+                "View",
+                ad_url,
+                content_murl,
+                userData,
+                request.timeStamp
+              );
+
+              console.log("check ytd3", payload);
+
+              await BackgroundService.sendAdEvent(payload);
+            } catch (error) {
+              console.error("Error in sending ad event:", error);
+            }
+          }
+        })();
       },
       { urls: ["<all_urls>"] }
     );
@@ -305,12 +321,6 @@ class BackgroundService {
     return "Unknown";
   }
 
-  // Add this at the top of background.js
-  static async isUserRegistered() {
-    const userData = await chrome.storage.local.get("ifatFormData");
-    return !!userData.ifatFormData;
-  }
-
   static setupMessageListener() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log("ytd1", message);
@@ -386,10 +396,10 @@ class BackgroundService {
     console.log("urls", ad_urll, content_urll);
 
     return {
-      event_type: type,
-      ad_url: ad_urll, // Now using the actual ad URL
-      content_url: content_urll, // Using the initiator as content URL
-      ad_type: "preroll", // You might want to make this dynamic too
+      event_type: "preroll",
+      ad_url: ad_urll,
+      content_url: content_urll,
+      ad_type: type,
       timestamp,
       app_version: this.manifest.version,
       browser: this.browserInfo.browserName,
