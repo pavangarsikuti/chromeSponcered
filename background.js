@@ -18,7 +18,7 @@ class BackgroundService {
     /\.doubleclick\.net/i,
     /googleads\.g\.doubleclick\.net/i,
     /\.youtube\.com\/api\/stats\/ads/i,
-    /\.googlesyndication\.com/i,
+    // /\.googlesyndication\.com/i,
     /\.innovid\.com/i,
     /\.brightcove\.com\/.*?ad/i,
 
@@ -83,6 +83,28 @@ class BackgroundService {
         resolve(result.ifatFormData || null);
       });
     });
+  }
+
+  static guid() {
+    function s4() {
+      return Math.floor((1 + Math.random()) * 0x10000)
+        .toString(16)
+        .substring(1);
+    }
+    return (
+      s4() +
+      s4() +
+      "-" +
+      s4() +
+      "-" +
+      s4() +
+      "-" +
+      s4() +
+      "-" +
+      s4() +
+      s4() +
+      s4()
+    );
   }
 
   static ytURL(video_id) {
@@ -178,7 +200,6 @@ class BackgroundService {
         if (!u) return;
         var Sitelocation = getLocation(u);
         var t = page_url;
-        console.log("location", Sitelocation);
         if (
           Sitelocation.hostname.indexOf("youtube.com") !== -1 ||
           t.indexOf("youtube.com") !== -1
@@ -218,8 +239,6 @@ class BackgroundService {
             Sitelocation.hostname.includes("youtube.com") &&
             ad_url
           ) {
-            console.log("check ytd1");
-
             try {
               const userData = await BackgroundService.getIfatFormData();
               const payload = BackgroundService.createAdEventPayload(
@@ -254,7 +273,6 @@ class BackgroundService {
     const isAd = this.AD_PATTERNS.some((pattern) => pattern.test(request.url));
     if (isAd && !request.initiator?.includes("youtube.com")) {
       console.log("check 2", isAd);
-
       this.processDetectedAd(request);
     }
   }
@@ -394,12 +412,13 @@ class BackgroundService {
       content_urll = videoData.url;
     }
     console.log("urls", ad_urll, content_urll);
+    var _id = this.guid();
 
     return {
-      event_type: "preroll",
+      event_type: type,
       ad_url: ad_urll,
       content_url: content_urll,
-      ad_type: type,
+      ad_type: "preroll",
       timestamp,
       app_version: this.manifest.version,
       browser: this.browserInfo.browserName,
@@ -409,7 +428,7 @@ class BackgroundService {
         birth_date: birthDate,
         code: userFormData.code,
         gender: userFormData.gender,
-        id: "269234e4-5ee3-2ced-6a52-d901b40db585",
+        id: _id,
         lang: userFormData.lang,
         location: userFormData.location,
         panel_id: userFormData.panel_id,
