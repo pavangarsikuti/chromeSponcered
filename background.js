@@ -169,7 +169,7 @@ class BackgroundService {
         if (!isAllowed) {
           return;
         }
-        this.detectNetworkAd(request);
+        // this.detectNetworkAd(request);
 
         var page_url = "";
         function getLocation(href) {
