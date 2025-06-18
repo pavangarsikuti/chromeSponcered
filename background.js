@@ -388,14 +388,28 @@ class BackgroundService {
     let site = "unknown";
     let ad_urll = advertiser.url;
     let content_urll = videoData.url;
+    // try {
+    //   if ((videoData.url && videoData.url !== "unknown") || videoData) {
+    //     if (videoData.url) {
+    //       const url = new URL(videoData.url);
+    //       site = url.hostname.replace(/^www\./, "");
+    //     } else {
+    //       const url = new URL(videoData);
+    //       site = url.hostname.replace(/^www\./, "");
+    //     }
+    //   }
+    // } catch (e) {
+    //   console.warn("Couldn't parse site URL:", videoData.url);
+    // }
     try {
       if ((videoData.url && videoData.url !== "unknown") || videoData) {
-        if (videoData.url) {
-          const url = new URL(videoData.url);
-          site = url.hostname.replace(/^www\./, "");
+        let rawUrl = videoData.url || videoData;
+        const url = new URL(rawUrl);
+        const hostname = url.hostname;
+        if (hostname === "www.youtube.com" || hostname === "youtube.com") {
+          site = "www.youtube.com";
         } else {
-          const url = new URL(videoData);
-          site = url.hostname.replace(/^www\./, "");
+          site = hostname.replace(/^www\./, "");
         }
       }
     } catch (e) {
