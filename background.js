@@ -401,20 +401,24 @@ class BackgroundService {
     // } catch (e) {
     //   console.warn("Couldn't parse site URL:", videoData.url);
     // }
+
     try {
       if ((videoData.url && videoData.url !== "unknown") || videoData) {
         let rawUrl = videoData.url || videoData;
         const url = new URL(rawUrl);
         const hostname = url.hostname;
-        if (hostname === "www.youtube.com" || hostname === "youtube.com") {
-          site = "www.youtube.com";
+
+        // Preserve full hostname for YouTube
+        if (hostname.includes("youtube.com")) {
+          site = hostname;
         } else {
           site = hostname.replace(/^www\./, "");
         }
       }
     } catch (e) {
-      console.warn("Couldn't parse site URL:", videoData.url);
+      console.warn("Couldn't parse site URL:", videoData?.url || videoData);
     }
+
     if (advertiser) {
       ad_urll = advertiser;
     } else {
