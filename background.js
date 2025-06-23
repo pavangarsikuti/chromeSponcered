@@ -97,7 +97,7 @@ class BackgroundService {
               break;
           }
         } catch (error) {
-          console.error("Message handling error:", error);
+          console.log("Message handling error:", error);
           sendResponse({ success: false, error: error.message });
         }
         return true;
@@ -188,7 +188,8 @@ class BackgroundService {
       const payload = this.createAdEventPayload(adData);
       await this.sendAdEvent(payload);
     } catch (error) {
-      console.error("Ad data handling error:", error);
+      console.log("Ad data handling error:", error);
+      return;
     }
   }
 
@@ -323,12 +324,31 @@ class BackgroundService {
 
   static async adEventCallback(data) {
     try {
+      if (!this.userData) {
+        await this.loadUserData();
+      }
+      if (!this.userData) {
+        await this.triggerReRegistration();
+        return;
+      }
+
       this.enrichAdData(data);
       this.validateAdEvent(data);
       await this.sendAdEvent(data);
     } catch (error) {
-      console.error("Ad event callback error:", error);
+      console.log("Ad event callback error:", error);
+      return;
     }
+  }
+
+  static async triggerReRegistration() {
+    console.log("No user found - triggering re-registration flow");
+    await chrome.tabs.create({
+      url: `${CONFIG.BASE_URL}${CONFIG.REGISTRATION_PATH}`
+    });
+    await this.setStorageData("ifatFormData", null);
+    this.userData = null;
+    await this.setStorageData("pendingAdEvent", data);
   }
 
   static enrichAdData(data) {
@@ -467,8 +487,8 @@ class BackgroundService {
         this.lastAdEvent = payload;
       }
     } catch (error) {
-      console.error("Failed to send ad event:", error);
-      throw error;
+      console.log("Failed to send ad event:", error);
+      return;
     }
   }
 
