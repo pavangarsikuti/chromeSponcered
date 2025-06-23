@@ -14,13 +14,21 @@ const storage = {
   }
 };
 
-
 async function onFocus() {
   await storage.set("currentUrl", window.location.href);
 }
 
+function formatBirthDate({ dob_year, dob_month, dob_day }) {
+  return `${dob_year}-${dob_month.padStart(2, "0")}-${dob_day.padStart(
+    2,
+    "0"
+  )}`;
+}
+
 document.addEventListener("DOMContentLoaded", async function () {
-  document.getElementById("ifat-xtn-submit")?.addEventListener("click", async function () {
+  document
+    .getElementById("ifat-xtn-submit")
+    ?.addEventListener("click", async function () {
       const gender = document.querySelector(
         "input[name='gender']:checked"
       )?.value;
@@ -38,17 +46,22 @@ document.addEventListener("DOMContentLoaded", async function () {
       let panel_id = document.getElementById("panel_id")?.value;
       const lang = document.getElementById("lang")?.value;
 
-      const formData = {
-        gender,
+      const birth_date = formatBirthDate({
         dob_year,
         dob_month,
-        dob_day,
+        dob_day
+      });
+
+      const formData = {
+        gender,
+        birth_date,
         location,
         code,
         serial_num,
         serial_num1,
         panel_id,
-        lang
+        lang,
+        id: guid(),
       };
 
       if (!gender || !location || !dob_year || !dob_month || !dob_day) {
@@ -84,7 +97,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           lang: lang
         };
 
-       chrome.storage.local.set({ user: user });
+        chrome.storage.local.set({ user: user });
         chrome.runtime.sendMessage({
           event_type: "install",
           user: user,
@@ -101,7 +114,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         window.open(panelLink, "_blank");
       } catch (error) {
         console.error("Failed to register:", error);
-        alert("Failed to register")
+        alert("Failed to register");
       }
     });
 });

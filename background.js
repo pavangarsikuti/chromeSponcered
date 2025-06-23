@@ -9,7 +9,9 @@ console.log("Background loaded");
 class BackgroundService {
   static manifest = chrome.runtime.getManifest();
   static browserInfo = this.getBrowserInfo();
-  static detectedAds = new Map(); // Track ads per tab
+  static detectedAds = new Map();
+  static lastOBJ = null;
+  static userOBJ = null;
 
   // Enhanced ad domain patterns
   static AD_PATTERNS = [
@@ -47,6 +49,31 @@ class BackgroundService {
     this.setupMessageListener();
     this.setupAdDetection();
     this.logStartupInfo();
+    this.updateUserObj();
+  }
+
+  static getLocation(href) {
+    if (!href) return null;
+    var Sitelocation = {};
+    var index = href.indexOf("?");
+    var base = href;
+    Sitelocation.search = "";
+    if (index >= 0) {
+      Sitelocation.search = href.slice(index + 1);
+      base = href.slice(0, index);
+    }
+    var startHost = base.indexOf("://");
+    if (startHost >= 0) startHost += 3;
+    else startHost = 0;
+    var endHost = base.indexOf("/", startHost + 1);
+    if (endHost >= 0) {
+      Sitelocation.hostname = base.slice(startHost, endHost);
+      Sitelocation.pathname = base.slice(endHost);
+    } else {
+      Sitelocation.hostname = base.slice(startHost);
+      Sitelocation.pathname = "";
+    }
+    return Sitelocation;
   }
 
   static setupInstallListener() {
@@ -107,6 +134,11 @@ class BackgroundService {
     );
   }
 
+  static async updateUserObj() {
+    this.userOBJ = await this.getIfatFormData();
+    return this.userOBJ;
+  }
+
   static ytURL(video_id) {
     // alert(video_id);
     if (!video_id || video_id.length < 6) return "https://www.youtube.com";
@@ -123,6 +155,159 @@ class BackgroundService {
         ])[1].replace(/\+/g, "%20")
       ) || null
     );
+  }
+
+  static AllowedHost(site) {
+    var map = [
+      {
+        name: "ytimg.com",
+        site: "www.youtube.com"
+      },
+      {
+        name: "youtube",
+        site: "www.youtube.com"
+      }
+    ];
+    for (var i = 0; i < map.length; i++) {
+      if (site.indexOf(map[i].name) !== -1) return map[i].site;
+    }
+
+    //otherwise, if it is an israeli or dot com, remove subdomain.
+    var components = site.split(".");
+    var n = components.length;
+    if (n >= 4 && components[n - 1] === "il") {
+      for (i = 3; i < n; i++) components.shift();
+      return components.join(".");
+    }
+    if (n >= 3 && (components[n - 1] === "com" || components[n - 1] === "tv")) {
+      for (i = 2; i < n; i++) components.shift();
+      return components.join(".");
+    }
+    return site;
+  }
+
+  static async adEventCallback(data) {
+    debugger;
+    console.log("madhu", data);
+    data.time = Math.round(new Date().getTime() / 1000);
+    data.app_version = this.manifest.version;
+    data.browser = this.browserInfo.browserName;
+    var chromeVersion = this.browserInfo.chromeVersion;
+    data.browser_version = chromeVersion;
+    data.os = this.browserInfo.os;
+
+    if (!data.os) data.os = "unknown";
+
+    await BackgroundService.updateUserObj();
+    if (!data.user) data.user = this.userOBJ;
+    if (!data.user || !data.user.id || !data.user.serial_num) {
+      console.log("Could not find user information. aborting");
+      return;
+    }
+
+    if (
+      data.event_type === "view-facebook" ||
+      data.event_type === "view-facebook_side" ||
+      data.event_type === "view-facebook_img"
+    ) {
+      if (data.event_type === "view-facebook") data.ad_type = "preroll";
+      else if (data.event_type === "view-facebook_side")
+        data.ad_type = "side-ad";
+      else data.ad_type = "post-ad";
+
+      data.event_type = "view-facebook";
+      data.content_url = "facebook.com";
+
+      // post(data);
+      return;
+    } else if (data.event_type === "facebook-post-only") {
+      // post(data);
+      return;
+    } else if (data.event_type === "banner") {
+      // post(data);
+      return;
+    }
+
+    if (!data.event_type) data.event_type = "view";
+    if ("install" !== data.event_type && "active" !== data.event_type) {
+      var lastViewEvent = this.lastOBJ;
+      console.log("lastViewEvent", lastViewEvent);
+
+      if (lastViewEvent) {
+        if (
+          data.event_type === "view" &&
+          data.content_url === lastViewEvent.content_url
+        ) {
+          var diff = data.time - lastViewEvent.time;
+          if (diff <= 3 || data.ad_url === lastViewEvent.ad_url) {
+            console.log(
+              "Duplicate event detected on " +
+                data.content_url +
+                " (" +
+                diff +
+                ")."
+            );
+            return;
+          }
+        }
+
+        console.log("lastViewEvent", lastViewEvent.content_url);
+        console.log("oEvent", data.content_url);
+
+        if (!data.content_url) {
+          data.content_url = lastViewEvent.content_url;
+        }
+        if (!data.ad_url) {
+          data.ad_url = lastViewEvent.ad_url;
+        }
+        if (
+          data.event_type === "skipped" ||
+          data.event_type === "click" ||
+          data.event_type === "_DetectedClick"
+        ) {
+          if (data.time - lastViewEvent.time > 60) {
+            console.log(
+              "Click or skip event detected too long after view on " +
+                data.content_url
+            );
+            return;
+          }
+        }
+      } else if (data.event_type !== "view") {
+        console.log(
+          "Dropping orphan " + data.event_type + " event on " + data.content_url
+        );
+        return;
+      }
+      if (data.event_type === "skipped") {
+        var last_skipped = localStorage.last_skipped;
+        if (last_skipped === data.ad_url) return;
+        (localStorage["last_skipped"] = data.ad_url),
+          new Date().getMinutes() + 1;
+      }
+      if (!data.ad_type) {
+        // data.ad_type = localStorage.ad_type;
+        if (!data.ad_type) {
+          if (!lastViewEvent) {
+            data.ad_type = "preroll";
+          } else if (data.event_type !== "view") {
+            data.ad_type = lastViewEvent.ad_type;
+          } else if (
+            lastViewEvent.content_url === data.content_url &&
+            data.time - lastViewEvent.time >= 10
+          ) {
+            data.ad_type = "midroll/postroll";
+          } else {
+            data.ad_type = "preroll";
+          }
+        }
+      }
+      var contentLocation = this.getLocation(data.content_url);
+      if (contentLocation)
+        data.site = this.AllowedHost(contentLocation.hostname);
+      if (data.event_type === "view") this.lastOBJ = data;
+    }
+    await this.sendAdEvent(data);
   }
 
   static setupAdDetection() {
@@ -172,34 +357,54 @@ class BackgroundService {
         // this.detectNetworkAd(request);
 
         var page_url = "";
-        function getLocation(href) {
-          if (!href) return null;
-          var l = {};
-          var index = href.indexOf("?");
-          var base = href;
-          l.search = "";
-          if (index >= 0) {
-            l.search = href.slice(index + 1);
-            base = href.slice(0, index);
-          }
-          var startHost = base.indexOf("://");
-          if (startHost >= 0) startHost += 3;
-          else startHost = 0;
-          var endHost = base.indexOf("/", startHost + 1);
-          if (endHost >= 0) {
-            l.hostname = base.slice(startHost, endHost);
-            l.pathname = base.slice(endHost);
-          } else {
-            l.hostname = base.slice(startHost);
-            l.pathname = "";
-          }
-          return l;
-        }
-
         var u = request.url;
         if (!u) return;
-        var Sitelocation = getLocation(u);
+        var Sitelocation = this.getLocation(u);
         var t = page_url;
+
+        function isYouTubeClick(url, location) {
+          if (!url || !location) return false;
+          if (location.hostname) {
+            const isDoubleClick =
+              location.hostname.includes("doubleclick.net") ||
+              location.hostname.includes("googleadservices.com");
+
+            if (isDoubleClick) {
+              const aclkPos = location.pathname.indexOf("aclk");
+              // aclk should be at beginning of path (positions 0-10)
+              return aclkPos >= 0 && aclkPos <= 10;
+            }
+          }
+
+          return false;
+        }
+
+        if (isYouTubeClick(u, Sitelocation)) {
+          debugger;
+          const ts = Math.floor(Date.now() / 1000);
+          console.log("YouTube click detected:", u, "|", t, "|", ts);
+
+          localStorage.setItem("lastClickTs", ts);
+          localStorage.setItem("lastClickUrl", u);
+
+          BackgroundService.adEventCallback({
+            event_type: "_DetectedClick",
+            click_url: u,
+            timestamp: ts
+          });
+          return;
+        }
+
+        function adEvent(content_url, ad_url, ad_type, event_type) {
+          var adEventObj = {
+            event_type: event_type,
+            ad_url: ad_url,
+            content_url: content_url,
+            ad_type: ad_type
+          };
+          BackgroundService.adEventCallback(adEventObj);
+        }
+
         if (
           Sitelocation.hostname.indexOf("youtube.com") !== -1 ||
           t.indexOf("youtube.com") !== -1
@@ -222,6 +427,7 @@ class BackgroundService {
             } else {
               content_url = this.ytURL(content_v);
             }
+            adEvent(content_url, ad_url);
           } else if (
             Sitelocation.pathname.indexOf("pagead/conversion") !== -1 &&
             Sitelocation.search.indexOf("label=videoskipped") !== -1
@@ -231,32 +437,32 @@ class BackgroundService {
           }
         }
 
-        (async () => {
-          const registered = await this.isUserRegistered();
+        // (async () => {
+        //   const registered = await this.isUserRegistered();
 
-          if (
-            registered &&
-            Sitelocation.hostname.includes("youtube.com") &&
-            ad_url
-          ) {
-            try {
-              const userData = await BackgroundService.getIfatFormData();
-              const payload = BackgroundService.createAdEventPayload(
-                "View",
-                ad_url,
-                content_murl,
-                userData,
-                request.timeStamp
-              );
+        //   if (
+        //     registered &&
+        //     Sitelocation.hostname.includes("youtube.com") &&
+        //     ad_url
+        //   ) {
+        //     try {
+        //       const userData = await BackgroundService.getIfatFormData();
+        //       const payload = BackgroundService.createAdEventPayload(
+        //         "View",
+        //         ad_url,
+        //         content_murl,
+        //         userData,
+        //         request.timeStamp
+        //       );
 
-              console.log("check ytd3", payload);
+        //       console.log("check ytd3", payload);
 
-              await BackgroundService.sendAdEvent(payload);
-            } catch (error) {
-              console.error("Error in sending ad event:", error);
-            }
-          }
-        })();
+        //       await BackgroundService.sendAdEvent(payload);
+        //     } catch (error) {
+        //       console.error("Error in sending ad event:", error);
+        //     }
+        //   }
+        // })();
       },
       { urls: ["<all_urls>"] }
     );
@@ -344,9 +550,9 @@ class BackgroundService {
       console.log("ytd1", message);
       if (message.type === "YTD_SPONCERED_DATA") {
         console.log("ytd2", message.data);
-        this.handleAdData(message.data)
-          .then(() => sendResponse({ success: true }))
-          .catch((error) => sendResponse({ success: false, error }));
+        this.handleAdData(message.data);
+        // .then(() => sendResponse({ success: true }))
+        // .catch((error) => sendResponse({ success: false, error }));
         return true;
       }
     });
@@ -383,32 +589,15 @@ class BackgroundService {
     userFormData,
     timestamp
   ) {
-    const birthDate = this.formatBirthDate(userFormData);
 
     let site = "unknown";
     let ad_urll = advertiser.url;
     let content_urll = videoData.url;
-    // try {
-    //   if ((videoData.url && videoData.url !== "unknown") || videoData) {
-    //     if (videoData.url) {
-    //       const url = new URL(videoData.url);
-    //       site = url.hostname.replace(/^www\./, "");
-    //     } else {
-    //       const url = new URL(videoData);
-    //       site = url.hostname.replace(/^www\./, "");
-    //     }
-    //   }
-    // } catch (e) {
-    //   console.warn("Couldn't parse site URL:", videoData.url);
-    // }
-
     try {
       if ((videoData.url && videoData.url !== "unknown") || videoData) {
         let rawUrl = videoData.url || videoData;
         const url = new URL(rawUrl);
         const hostname = url.hostname;
-
-        // Preserve full hostname for YouTube
         if (hostname.includes("youtube.com")) {
           site = hostname;
         } else {
@@ -436,14 +625,14 @@ class BackgroundService {
       event_type: type,
       ad_url: ad_urll,
       content_url: content_urll,
-      ad_type: "preroll",
+      ad_type: type,
       timestamp,
       app_version: this.manifest.version,
       browser: this.browserInfo.browserName,
       browser_version: this.browserInfo.chromeVersion,
       os: this.browserInfo.os,
       user: {
-        birth_date: birthDate,
+        birth_date: userFormData.birth_date,
         code: userFormData.code,
         gender: userFormData.gender,
         id: _id,
@@ -456,14 +645,7 @@ class BackgroundService {
       site: site // Now dynamic based on initiator
     };
   }
-
-  static formatBirthDate({ dob_year, dob_month, dob_day }) {
-    return `${dob_year}-${dob_month.padStart(2, "0")}-${dob_day.padStart(
-      2,
-      "0"
-    )}`;
-  }
-
+  
   static async sendAdEvent(payload) {
     console.log("payload", payload);
     try {
