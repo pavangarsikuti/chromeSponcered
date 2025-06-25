@@ -1,474 +1,609 @@
 const CONFIG = {
   BASE_URL: "http://172.20.20.72:9008",
   REGISTRATION_PATH: "/Registration",
-  API_ENDPOINT: "/Data/api/Panel/Add",
-  ALLOWED_DOMAINS: [
-    "10.tv",
-    "walla.co.il",
-    "ynet.co.il",
-    "sport5.co.il",
-    "one.co.il",
-    "nana10.co.il",
-    "tapuz.co.il",
-    "mako.co.il",
-    "reshet.tv",
-    "13tv.co.il",
-    "xnet.ynet.co.il",
-    "youtube.com"
-  ],
-  AD_NETWORK_MAP: {
-    "flashtalking.com": "Flashtalking",
-    "doubleclick.net": "Google DoubleClick",
-    "googlesyndication.com": "Google AdSense",
-    "innovid.com": "Innovid",
-    "adform.net": "Adform",
-    "criteo.com": "Criteo",
-    "taboola.com": "Taboola",
-    "outbrain.com": "Outbrain"
-  },
-  AD_PATTERNS: [
-    /cdn\.flashtalking\.com/i,
-    /\.doubleclick\.net/i,
-    /googleads\.g\.doubleclick\.net/i,
-    /\.youtube\.com\/api\/stats\/ads/i,
-    /\.innovid\.com/i,
-    /\.brightcove\.com\/.*?ad/i,
-    /\.adform\.net/i,
-    /\.criteo\.com/i,
-    /\.taboola\.com/i,
-    /\.outbrain\.com/i,
-    /\.revcontent\.com/i,
-    /\.scorecardresearch\.com/i,
-    /\.quantserve\.com/i,
-    /\.exelator\.com/i,
-    /\/ads?\//i,
-    /[?&]ad_/i,
-    /_adserver/i,
-    /\.(mp4|m3u8|mov|flv)(\?.*)?$/i,
-    /\.(gif|jpg|jpeg|png)\?.*ad/i
-  ]
+  API_ENDPOINT: "/Data/api/Panel/Add"
 };
+
+console.log("Background loaded");
 
 class BackgroundService {
   static manifest = chrome.runtime.getManifest();
   static browserInfo = this.getBrowserInfo();
   static detectedAds = new Map();
-  static lastAdEvent = null;
-  static userData = null;
+  static lastOBJ = null;
+  static userOBJ = null;
+
+  // Enhanced ad domain patterns
+  static AD_PATTERNS = [
+    // Video Ads
+    /cdn\.flashtalking\.com/i,
+    /\.doubleclick\.net/i,
+    /googleads\.g\.doubleclick\.net/i,
+    /\.youtube\.com\/api\/stats\/ads/i,
+    // /\.googlesyndication\.com/i,
+    /\.innovid\.com/i,
+    /\.brightcove\.com\/.*?ad/i,
+
+    // Display Ads
+    /\.adform\.net/i,
+    /\.criteo\.com/i,
+    /\.taboola\.com/i,
+    /\.outbrain\.com/i,
+    /\.revcontent\.com/i,
+
+    // Tracking
+    /\.scorecardresearch\.com/i,
+    /\.quantserve\.com/i,
+    /\.exelator\.com/i,
+
+    // Generic Patterns
+    /\/ads?\//i,
+    /[?&]ad_/i,
+    /_adserver/i,
+    /\.(mp4|m3u8|mov|flv)(\?.*)?$/i,
+    /\.(gif|jpg|jpeg|png)\?.*ad/i
+  ];
 
   static init() {
-    this.setupEventListeners();
-    this.logStartupInfo();
-    this.loadUserData();
-  }
-
-  // Initialization Methods
-
-  static setupEventListeners() {
     this.setupInstallListener();
     this.setupMessageListener();
     this.setupAdDetection();
+    this.logStartupInfo();
+    this.updateUserObj();
+  }
+
+  static getLocation(href) {
+    if (!href) return null;
+    var Sitelocation = {};
+    var index = href.indexOf("?");
+    var base = href;
+    Sitelocation.search = "";
+    if (index >= 0) {
+      Sitelocation.search = href.slice(index + 1);
+      base = href.slice(0, index);
+    }
+    var startHost = base.indexOf("://");
+    if (startHost >= 0) startHost += 3;
+    else startHost = 0;
+    var endHost = base.indexOf("/", startHost + 1);
+    if (endHost >= 0) {
+      Sitelocation.hostname = base.slice(startHost, endHost);
+      Sitelocation.pathname = base.slice(endHost);
+    } else {
+      Sitelocation.hostname = base.slice(startHost);
+      Sitelocation.pathname = "";
+    }
+    return Sitelocation;
   }
 
   static setupInstallListener() {
     chrome.runtime.onInstalled.addListener(({ reason }) => {
       if (reason === "install" || reason === "update") {
-        chrome.tabs.create({
-          url: `${CONFIG.BASE_URL}${CONFIG.REGISTRATION_PATH}`
-        });
+        chrome.tabs.create(
+          {
+            url: `${CONFIG.BASE_URL}${CONFIG.REGISTRATION_PATH}`
+          },
+          (tab) => {
+            console.log("New tab launched with registration page");
+          }
+        );
       }
     });
   }
 
-  static setupMessageListener() {
-    chrome.runtime.onMessage.addListener(
-      async (message, sender, sendResponse) => {
-        try {
-          switch (message.type) {
-            case "YTD_SPONCERED_DATA":
-              await this.handleAdData(message.data);
-              break;
-            case "UPDATE_USER_DATA":
-              await this.updateUserData(message.data);
-              sendResponse({ success: true });
-              break;
-            case "GET_USER_DATA":
-              sendResponse({ data: this.userData });
-              break;
-          }
-        } catch (error) {
-          console.log("Message handling error:", error);
-          sendResponse({ success: false, error: error.message });
+  static async isUserRegistered() {
+    const userData = await chrome.storage.local.get("ifatFormData");
+    return !!userData.ifatFormData;
+  }
+
+  static async getIfatFormData() {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.get("ifatFormData", (result) => {
+        if (chrome.runtime.lastError) {
+          console.log("Error fetching ifatFormData:", chrome.runtime.lastError);
+          return reject(chrome.runtime.lastError);
         }
-        return true;
-      }
+        resolve(result.ifatFormData || null);
+      });
+    });
+  }
+
+  static async updateUserObj() {
+    this.userOBJ = await this.getIfatFormData();
+    return this.userOBJ;
+  }
+
+  static ytURL(video_id) {
+    if (!video_id || video_id.length < 6) return "https://www.youtube.com";
+    return `https://www.youtube.com/watch?v=${video_id}`;
+  }
+
+  static getURLParameter(url, name) {
+    return (
+      decodeURIComponent(
+        (new RegExp(`[?|&]${name}=([^&;]+?)(&|#|;|$)`).exec(url) || [
+          ,
+          ""
+        ])[1].replace(/\+/g, "%20")
+      ) || null
     );
+  }
+
+  static AllowedHost(site) {
+    var map = [
+      {
+        name: "ytimg.com",
+        site: "www.youtube.com"
+      },
+      {
+        name: "youtube",
+        site: "www.youtube.com"
+      }
+    ];
+    for (var i = 0; i < map.length; i++) {
+      if (site.indexOf(map[i].name) !== -1) return map[i].site;
+    }
+
+    var components = site.split(".");
+    var n = components.length;
+    if (n >= 4 && components[n - 1] === "il") {
+      for (i = 3; i < n; i++) components.shift();
+      return components.join(".");
+    }
+    if (n >= 3 && (components[n - 1] === "com" || components[n - 1] === "tv")) {
+      for (i = 2; i < n; i++) components.shift();
+      return components.join(".");
+    }
+    return site;
+  }
+
+  static async adEventCallback(data) {
+    data.time = Math.round(new Date().getTime() / 1000);
+    data.app_version = this.manifest.version;
+    data.browser = this.browserInfo.browserName;
+    var chromeVersion = this.browserInfo.chromeVersion;
+    data.browser_version = chromeVersion;
+    data.os = this.browserInfo.os;
+
+    if (!data.os) data.os = "unknown";
+
+    try {
+      const storage = await chrome.storage.local.get([
+        "lastViewEvent",
+        "last_skipped",
+        "ad_type",
+        "is_skipped",
+        "addClicked",
+        "lastDetectedClick"
+      ]);
+
+      const clearstoarge = await chrome.storage.local.remove("addClicked");
+
+      await BackgroundService.updateUserObj();
+      if (!data.user) data.user = this.userOBJ;
+      if (!data.user || !data.user.id || !data.user.serial_num) {
+        console.log("Could not find user information. aborting");
+        return;
+      }
+
+      if (data.event_type === "_DetectedClick" && !storage.addClicked) {
+        console.log("DetectedClick event without Clicked flag. Skipping.");
+        return;
+      }
+
+      const lastClickDtected = storage.lastDetectedClick
+        ? JSON.parse(storage.lastDetectedClick)
+        : null;
+
+      if (data.event_type === "_DetectedClick") {
+        var prevClickData = lastClickDtected?.click_url;
+        var currentClickData = {
+          click_url: data?.click_url || ""
+        };
+        if (prevClickData && prevClickData === currentClickData?.click_url) {
+          console.log("Duplicate click detected aborting");
+          return;
+        }
+        await chrome.storage.local.set({
+          lastDetectedClick: JSON.stringify(data)
+        });
+      }
+
+      if (!data.event_type) data.event_type = "view";
+
+      const lastViewEvent = storage.lastViewEvent
+        ? JSON.parse(storage.lastViewEvent)
+        : null;
+
+      if (!["install", "active"].includes(data.event_type)) {
+        if (lastViewEvent) {
+          if (
+            data.event_type === "view" &&
+            data.content_url === lastViewEvent.content_url
+          ) {
+            const diff = data.time - lastViewEvent.time;
+            if (diff <= 3 || data.ad_url === lastViewEvent.ad_url) {
+              console.log(
+                `Duplicate event detected on ${data.content_url} (${diff}).`
+              );
+              return;
+            }
+          }
+
+          if (!data.content_url) data.content_url = lastViewEvent.content_url;
+          if (!data.ad_url) data.ad_url = lastViewEvent.ad_url;
+
+          if (
+            ["skipped", "click", "_DetectedClick"].includes(data.event_type) &&
+            data.ad_url !== lastViewEvent.ad_url
+          ) {
+            console.log("Returning function for skipped,click,_DetectedClick");
+            return;
+          }
+        } else if (data.event_type !== "view") {
+          console.log(
+            `Dropping orphan ${data.event_type} event on ${data.content_url}`
+          );
+          return;
+        }
+
+        // Handle skip deduplication
+        if (data.event_type === "skipped") {
+          if (storage.last_skipped === data.ad_url) return;
+          await chrome.storage.local.set({
+            last_skipped: data.ad_url
+          });
+        }
+
+        // Determine ad type
+        if (!data.ad_type) {
+          data.ad_type = storage.ad_type;
+          if (!data.ad_type) {
+            if (!lastViewEvent) {
+              data.ad_type = "preroll";
+            } else if (data.event_type !== "view") {
+              data.ad_type = lastViewEvent.ad_type;
+            } else if (
+              lastViewEvent.content_url === data.content_url &&
+              data.time - lastViewEvent.time >= 10
+            ) {
+              data.ad_type = "midroll/postroll";
+            } else {
+              data.ad_type = "preroll";
+            }
+          }
+        }
+
+        const contentLocation = this.getLocation(data.content_url);
+        if (contentLocation)
+          data.site = this.AllowedHost(contentLocation.hostname);
+
+        if (data.event_type === "view") {
+          await chrome.storage.local.set({
+            lastViewEvent: JSON.stringify(data)
+          });
+        }
+      }
+
+      if (storage.is_skipped && storage.is_skipped === "true") {
+        data.event_type = "skipped";
+        await chrome.storage.local.set({
+          is_skipped: "false"
+        });
+      }
+      clearstoarge;
+      await this.sendAdEvent(data);
+    } catch (err) {
+      console.log("Error in adEventCallback:", err);
+    }
   }
 
   static setupAdDetection() {
     chrome.storage.local.get(["adLogs"], (result) => {
-      if (!result.adLogs) chrome.storage.local.set({ adLogs: [] });
+      if (!result.adLogs) {
+        chrome.storage.local.set({ adLogs: [] });
+      }
     });
 
     chrome.webRequest.onBeforeRequest.addListener(
-      this.handleWebRequest.bind(this),
+      (request) => {
+        const pageUrl = request.initiator || request.documentUrl;
+        if (!pageUrl) return;
+
+        let pageDomain = "";
+
+        try {
+          pageDomain = new URL(pageUrl).hostname.replace(/^www\./, "");
+        } catch (err) {
+          console.warn("Invalid page URL:", pageUrl);
+          return;
+        }
+
+        const ALLOWED_DOMAINS = [
+          "10.tv",
+          "walla.co.il",
+          "ynet.co.il",
+          "sport5.co.il",
+          "one.co.il",
+          "nana10.co.il",
+          "tapuz.co.il",
+          "mako.co.il",
+          "reshet.tv",
+          "13tv.co.il",
+          "xnet.ynet.co.il",
+          "youtube.com"
+        ];
+
+        const isAllowed = ALLOWED_DOMAINS.some((domain) =>
+          pageDomain.endsWith(domain)
+        );
+
+        if (!isAllowed) {
+          return;
+        }
+        // this.detectNetworkAd(request);
+
+        var page_url = "";
+        var u = request.url;
+        if (!u) return;
+        var Sitelocation = this.getLocation(u);
+        var t = page_url;
+
+        function isYouTubeClick(url, location) {
+          if (!url || !location) return false;
+          if (location.hostname) {
+            const isDoubleClick =
+              location.hostname.includes("doubleclick.net") ||
+              location.hostname.includes("googleadservices.com");
+
+            if (isDoubleClick) {
+              const aclkPos = location.pathname.indexOf("aclk");
+              return aclkPos >= 0 && aclkPos <= 10;
+            }
+          }
+
+          return false;
+        }
+
+        if (isYouTubeClick(u, Sitelocation)) {
+          const ts = Math.floor(Date.now() / 1000);
+          chrome.storage.local.set({
+            lastClickTs: ts,
+            lastClickUrl: u
+          });
+
+          BackgroundService.adEventCallback({
+            event_type: "_DetectedClick",
+            click_url: u,
+            timestamp: ts
+          });
+          return;
+        }
+
+        function adEvent(content_url, ad_url, ad_type, event_type) {
+          var adEventObj = {
+            event_type: event_type,
+            ad_url: ad_url,
+            content_url: content_url,
+            ad_type: ad_type
+          };
+          BackgroundService.adEventCallback(adEventObj);
+        }
+
+        function adSkipped(content_url, ad_url) {
+          adEvent(content_url, ad_url, null, "skipped");
+        }
+
+        if (
+          Sitelocation.hostname.indexOf("youtube.com") !== -1 ||
+          t.indexOf("youtube.com") !== -1
+        ) {
+          if (
+            Sitelocation.hostname.indexOf("youtube.com") !== -1 &&
+            Sitelocation.pathname.indexOf("ptracking") !== -1 &&
+            Sitelocation.search.indexOf("adhost") !== -1
+          ) {
+            var ad_url = this.ytURL(this.getURLParameter(u, "video_id"));
+            var content_murl = this.ytURL(this.getURLParameter(u, "content_v"));
+            var content_v = this.getURLParameter(u, "content_v");
+            console.log("++Ad", content_murl);
+            if (!content_v || content_v.length < 6) {
+              content_v = this.getURLParameter(t, "content_v");
+            }
+            if (!content_v || content_v.length < 6) {
+              var content_url = t;
+            } else {
+              content_url = this.ytURL(content_v);
+            }
+            adEvent(content_url, ad_url);
+          } else if (
+            // Sitelocation.pathname.indexOf("pagead/interaction") !== -1 &&
+            Sitelocation.search.indexOf("label=videoskipped") !== -1
+          ) {
+            adSkipped(null, null);
+          }
+        }
+      },
       { urls: ["<all_urls>"] }
     );
 
+    chrome.webNavigation.onBeforeNavigate.addListener((details) => {
+      if (
+        details.url.startsWith("https://www.googleadservices.com/pagead/aclk")
+      ) {
+        const ts = Math.floor(Date.now() / 1000);
+        chrome.storage.local.set({
+          addClicked: ts
+        });
+      }
+    });
     chrome.tabs.onRemoved.addListener((tabId) => {
       this.detectedAds.delete(tabId);
     });
   }
 
-  // User Data Methods
-
-  static async loadUserData() {
-    this.userData = await this.getStorageData("ifatFormData");
-  }
-
-  static async updateUserData(newData) {
-    this.userData = newData;
-    await this.setStorageData("ifatFormData", newData);
-  }
-
-  static async isUserRegistered() {
-    return !!this.userData;
-  }
-
-  // Storage Helper Methods
-
-  static getStorageData(key) {
-    return new Promise((resolve) => {
-      chrome.storage.local.get([key], (result) => {
-        resolve(result[key] || null);
-      });
-    });
-  }
-
-  static setStorageData(key, value) {
-    return new Promise((resolve) => {
-      chrome.storage.local.set({ [key]: value }, () => resolve());
-    });
-  }
-
-  // Ad Event Handling
-
-  static handleWebRequest(request) {
-    if (!this.isValidRequest(request)) return;
-
-    const { url, initiator } = request;
-    const location = this.parseUrl(url);
-
-    if (this.isYouTubeClick(url, location)) {
-      this.handleYouTubeClick(url);
-      return;
-    }
-
-    if (this.isYouTubeAd(url, location)) {
-      this.handleYouTubeAd(url, location);
+  static detectNetworkAd(request) {
+    if (request.tabId === -1) return;
+    const isAd = this.AD_PATTERNS.some((pattern) => pattern.test(request.url));
+    if (isAd && !request.initiator?.includes("youtube.com")) {
+      this.processDetectedAd(request);
     }
   }
 
-  static isValidRequest(request) {
-    const pageUrl = request.initiator || request.documentUrl;
-    if (!pageUrl) return false;
-
+  static extractDomain(url) {
     try {
-      const pageDomain = new URL(pageUrl).hostname.replace(/^www\./, "");
-      return CONFIG.ALLOWED_DOMAINS.some((domain) =>
-        pageDomain.endsWith(domain)
-      );
+      const domain = new URL(url).hostname;
+      return domain.replace(/^www\./, "");
     } catch {
-      return false;
+      return "";
     }
+  }
+
+  static async processDetectedAd(request) {
+    if (!this.detectedAds.has(request.tabId)) {
+      this.detectedAds.set(request.tabId, new Set());
+    }
+
+    const tabAds = this.detectedAds.get(request.tabId);
+    if (tabAds.has(request.url)) return;
+
+    tabAds.add(request.url);
+
+    const adData = {
+      url: request.url,
+      timestamp: new Date().toISOString(),
+      tabId: request.tabId,
+      frameId: request.frameId,
+      type: request.type,
+      initiator: request.initiator,
+      domain: this.extractDomain(request.url),
+      adNetwork: this.detectAdNetwork(request.url)
+    };
+    const registered = await this.isUserRegistered();
+    if (registered) {
+      const userData = await chrome.storage.local.get("ifatFormData");
+      await this.handleAdData({
+        type: "network_ad",
+        advertiser: adData.domain,
+        videoData: request.url,
+        userFormData: userData.ifatFormData,
+        timestamp: adData.timestamp
+      });
+    }
+  }
+
+  static detectAdNetwork(url) {
+    const networkMap = {
+      "flashtalking.com": "Flashtalking",
+      "doubleclick.net": "Google DoubleClick",
+      "googlesyndication.com": "Google AdSense",
+      "innovid.com": "Innovid",
+      "adform.net": "Adform",
+      "criteo.com": "Criteo",
+      "taboola.com": "Taboola",
+      "outbrain.com": "Outbrain"
+    };
+
+    for (const [domain, name] of Object.entries(networkMap)) {
+      if (url.includes(domain)) return name;
+    }
+
+    return "Unknown";
+  }
+
+  static setupMessageListener() {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === "YTD_SPONCERED_DATA") {
+        this.handleAdData(message.data);
+        // .then(() => sendResponse({ success: true }))
+        // .catch((error) => sendResponse({ success: false, error }));
+        return true;
+      }
+    });
   }
 
   static async handleAdData(adData) {
-    try {
-      const payload = this.createAdEventPayload(adData);
-      await this.sendAdEvent(payload);
-    } catch (error) {
-      console.log("Ad data handling error:", error);
-      return;
-    }
+    const { advertiser, videoData, userFormData, timestamp, initiator } =
+      adData;
+    const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
+
+    const adEventData = this.createAdEventPayload(
+      adData.type || "network_ad", // Fallback to "network_ad" if type not provided
+      advertiser,
+      videoData,
+      userFormData,
+      unixTimestamp,
+      {
+        url: adData.url // Use the detected ad URL
+      },
+      {
+        url: initiator || "unknown" // Use the initiator as content URL
+      }
+    );
+
+    await this.sendAdEvent(adEventData);
   }
 
-  static createAdEventPayload({
-    type = "network_ad",
+  static createAdEventPayload(
+    type,
     advertiser,
     videoData,
-    userFormData = this.userData,
-    timestamp = Math.floor(Date.now() / 1000)
-  }) {
-    if (!userFormData) {
-      throw new Error("User data not available");
+    userFormData,
+    timestamp
+  ) {
+    let site = "unknown";
+    let ad_urll = advertiser.url;
+    let content_urll = videoData.url;
+    try {
+      if ((videoData.url && videoData.url !== "unknown") || videoData) {
+        let rawUrl = videoData.url || videoData;
+        const url = new URL(rawUrl);
+        const hostname = url.hostname;
+        if (hostname.includes("youtube.com")) {
+          site = hostname;
+        } else {
+          site = hostname.replace(/^www\./, "");
+        }
+      }
+    } catch (e) {
+      console.warn("Couldn't parse site URL:", videoData?.url || videoData);
     }
 
-    const { url: adUrl, domain: advertiserDomain } =
-      this.parseAdvertiser(advertiser);
-    const { url: contentUrl, site } = this.parseContent(videoData);
+    if (advertiser) {
+      ad_urll = advertiser;
+    } else {
+      ad_urll = advertiser.url;
+    }
+    if (videoData) {
+      content_urll = videoData;
+    } else {
+      content_urll = videoData.url;
+    }
+    console.log("urls", ad_urll, content_urll);
 
     return {
       event_type: type,
-      ad_url: adUrl,
-      content_url: contentUrl,
+      ad_url: ad_urll,
+      content_url: content_urll,
       ad_type: type,
       timestamp,
       app_version: this.manifest.version,
       browser: this.browserInfo.browserName,
       browser_version: this.browserInfo.chromeVersion,
       os: this.browserInfo.os,
-      user: this.createUserPayload(userFormData),
-      site
+      user: {
+        birth_date: userFormData.birth_date,
+        code: userFormData.code,
+        gender: userFormData.gender,
+        id: userFormData?.id,
+        lang: userFormData.lang,
+        location: userFormData.location,
+        panel_id: userFormData.panel_id,
+        serial_num: userFormData.serial_num,
+        serial_num1: userFormData.serial_num1
+      },
+      site: site // Now dynamic based on initiator
     };
-  }
-
-  static parseAdvertiser(advertiser) {
-    let url =
-      typeof advertiser === "string"
-        ? advertiser
-        : advertiser?.url || "unknown";
-    let domain = "unknown";
-
-    try {
-      domain = new URL(url).hostname.replace(/^www\./, "");
-    } catch (e) {
-      console.warn("Couldn't parse advertiser URL:", url);
-    }
-
-    return { url, domain };
-  }
-
-  static parseContent(content) {
-    let url = typeof content === "string" ? content : content?.url || "unknown";
-    let site = "unknown";
-
-    try {
-      const hostname = new URL(url).hostname;
-      site = hostname.includes("youtube.com")
-        ? hostname
-        : hostname.replace(/^www\./, "");
-    } catch (e) {
-      console.warn("Couldn't parse content URL:", url);
-    }
-
-    return { url, site };
-  }
-
-  static createUserPayload(userData) {
-    return {
-      id: this.generateGuid(),
-      birth_date: userData.birth_date,
-      code: userData.code,
-      gender: userData.gender,
-      lang: userData.lang,
-      location: userData.location,
-      panel_id: userData.panel_id,
-      serial_num: userData.serial_num,
-      serial_num1: userData.serial_num1
-    };
-  }
-
-  // YouTube Specific
-
-  static isYouTubeClick(url, location) {
-    if (!url || !location?.hostname) return false;
-
-    const isDoubleClick =
-      location.hostname.includes("doubleclick.net") ||
-      location.hostname.includes("googleadservices.com");
-
-    return isDoubleClick && location.pathname.includes("aclk");
-  }
-
-  static handleYouTubeClick(url) {
-    const timestamp = Math.floor(Date.now() / 1000);
-    this.setStorageData("lastClickData", { url, timestamp });
-    this.adEventCallback({
-      event_type: "_DetectedClick",
-      click_url: url,
-      timestamp
-    });
-  }
-
-  static isYouTubeAd(url, location) {
-    return (
-      location?.hostname?.includes("youtube.com") &&
-      location.pathname?.includes("ptracking") &&
-      location.search?.includes("adhost")
-    );
-  }
-
-  static handleYouTubeAd(url, location) {
-    const videoId = this.getURLParameter(url, "video_id");
-    const contentId = this.getURLParameter(url, "content_v");
-
-    const adUrl = this.constructYouTubeUrl(videoId);
-    const contentUrl = this.constructYouTubeUrl(contentId);
-
-    this.adEventCallback({
-      event_type: "view",
-      ad_url: adUrl,
-      content_url: contentUrl,
-      ad_type: "preroll"
-    });
-  }
-
-  static constructYouTubeUrl(videoId) {
-    return videoId?.length >= 6
-      ? `https://www.youtube.com/watch?v=${videoId}`
-      : "https://www.youtube.com";
-  }
-
-  // Ad Callback Handling
-
-  static async adEventCallback(data) {
-    try {
-      if (!this.userData) {
-        await this.loadUserData();
-      }
-      if (!this.userData) {
-        await this.triggerReRegistration();
-        return;
-      }
-
-      this.enrichAdData(data);
-      this.validateAdEvent(data);
-      await this.sendAdEvent(data);
-    } catch (error) {
-      console.log("Ad event callback error:", error);
-      return;
-    }
-  }
-
-  static async triggerReRegistration() {
-    console.log("No user found - triggering re-registration flow");
-    await chrome.tabs.create({
-      url: `${CONFIG.BASE_URL}${CONFIG.REGISTRATION_PATH}`
-    });
-    await this.setStorageData("ifatFormData", null);
-    this.userData = null;
-    await this.setStorageData("pendingAdEvent", data);
-  }
-
-  static enrichAdData(data) {
-    data.time = Math.floor(Date.now() / 1000);
-    data.app_version = this.manifest.version;
-    data.browser = this.browserInfo.browserName;
-    data.browser_version = this.browserInfo.chromeVersion;
-    data.os = this.browserInfo.os || "unknown";
-
-    if (!data.user) {
-      data.user = this.userData;
-    }
-  }
-
-  static validateAdEvent(data) {
-    if (!data.user) {
-      throw new Error("User data not available for ad event");
-    }
-
-    if (data.event_type !== "view" && !this.lastAdEvent) {
-      throw new Error(`Orphan ${data.event_type} event detected`);
-    }
-
-    if (this.lastAdEvent) {
-      this.checkForDuplicateEvents(data);
-      this.enrichWithLastEventData(data);
-    }
-  }
-
-  static checkForDuplicateEvents(data) {
-    if (
-      data.event_type === "view" &&
-      data.content_url === this.lastAdEvent.content_url
-    ) {
-      const diff = data.time - this.lastAdEvent.time;
-      if (diff <= 3 || data.ad_url === this.lastAdEvent.ad_url) {
-        throw new Error(`Duplicate event detected (${diff} sec)`);
-      }
-    }
-  }
-
-  static enrichWithLastEventData(data) {
-    if (!data.content_url) data.content_url = this.lastAdEvent.content_url;
-    if (!data.ad_url) data.ad_url = this.lastAdEvent.ad_url;
-
-    if (["skipped", "click", "_DetectedClick"].includes(data.event_type)) {
-      if (data.time - this.lastAdEvent.time > 60) {
-        throw new Error("Late interaction event detected");
-      }
-    }
-
-    if (!data.ad_type) {
-      data.ad_type = this.determineAdType(data);
-    }
-  }
-
-  static determineAdType(data) {
-    if (!this.lastAdEvent) return "preroll";
-    if (data.event_type !== "view") return this.lastAdEvent.ad_type;
-
-    return this.lastAdEvent.content_url === data.content_url &&
-      data.time - this.lastAdEvent.time >= 10
-      ? "midroll/postroll"
-      : "preroll";
-  }
-
-  // Utility Methods
-
-  static parseUrl(url) {
-    if (!url) return null;
-
-    const [base, search] = url.split("?");
-    const startHost = base.indexOf("://") + 3 || 0;
-    const endHost = base.indexOf("/", startHost + 1);
-
-    return {
-      hostname:
-        endHost >= 0 ? base.slice(startHost, endHost) : base.slice(startHost),
-      pathname: endHost >= 0 ? base.slice(endHost) : "",
-      search: search ? `?${search}` : ""
-    };
-  }
-
-  static getURLParameter(url, name) {
-    const match = new RegExp(`[?&]${name}=([^&;]+)`).exec(url);
-    return match ? decodeURIComponent(match[1].replace(/\+/g, "%20")) : null;
-  }
-
-  static generateGuid() {
-    const s4 = () =>
-      Math.floor((1 + Math.random()) * 0x10000)
-        .toString(16)
-        .substring(1);
-    return `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
-  }
-
-  static getBrowserInfo() {
-    const ua = navigator.userAgent;
-    const uaData = navigator.userAgentData;
-
-    let browserName = "Unknown";
-    let chromeVersion = "Unknown";
-
-    if (/Chrome/.test(ua) && !/Edge|OPR/.test(ua)) {
-      browserName = "Google Chrome";
-      chromeVersion = ua.match(/Chrome\/([\d.]+)/)?.[1] || "Unknown";
-    }
-
-    const os = uaData?.platform || this.detectOSFromUA(ua);
-
-    return { browserName, chromeVersion, os, fullUserAgent: ua };
-  }
-
-  static detectOSFromUA(ua) {
-    if (/Win/.test(ua)) return "Windows";
-    if (/Mac/.test(ua)) return "MacOS";
-    if (/Linux/.test(ua)) return "Linux";
-    if (/Android/.test(ua)) return "Android";
-    if (/iPhone|iPad|iPod/.test(ua)) return "iOS";
-    return "Unknown";
   }
 
   static async sendAdEvent(payload) {
@@ -480,26 +615,56 @@ class BackgroundService {
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      if (payload.event_type === "view") {
-        this.lastAdEvent = payload;
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
     } catch (error) {
       console.log("Failed to send ad event:", error);
-      return;
+      throw error;
     }
+  }
+
+  static getBrowserInfo() {
+    const ua = navigator.userAgent;
+    const uaData = navigator.userAgentData || null;
+
+    // Browser detection
+    let browserName = "Unknown";
+    let chromeVersion = "Not Chrome";
+
+    if (/Chrome/.test(ua) && !/Edge|OPR/.test(ua)) {
+      browserName = "Google Chrome";
+      const chromeMatch = ua.match(/Chrome\/([\d.]+)/);
+      chromeVersion = chromeMatch?.[1] ?? "Unknown";
+    }
+
+    // OS detection
+    let os = "Unknown";
+    if (uaData) {
+      os = uaData.platform || "Unknown";
+    } else {
+      if (/Win/.test(ua)) os = "Windows";
+      else if (/Mac/.test(ua)) os = "MacOS";
+      else if (/Linux/.test(ua)) os = "Linux";
+      else if (/Android/.test(ua)) os = "Android";
+      else if (/iPhone|iPad|iPod/.test(ua)) os = "iOS";
+    }
+
+    return {
+      browserName,
+      chromeVersion,
+      os,
+      fullUserAgent: ua
+    };
   }
 
   static logStartupInfo() {
     console.log(
-      `[BackgroundService] Version ${this.manifest.version} | ` +
-        `Browser: ${this.browserInfo.browserName} ${this.browserInfo.chromeVersion} | ` +
+      `[background] App Version: ${this.manifest.version} | ` +
+        `Browser: CHROME ${this.browserInfo.chromeVersion} | ` +
         `OS: ${this.browserInfo.os}`
     );
   }
 }
 
-// Initialize the service
+// Initialize the background service
 BackgroundService.init();
