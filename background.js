@@ -45,6 +45,7 @@ class BackgroundService {
   ];
 
   static init() {
+    this.getBrowserInfo();
     this.setupInstallListener();
     this.setupMessageListener();
     this.setupAdDetection();
@@ -159,7 +160,7 @@ class BackgroundService {
 
   static async adEventCallback(data) {
     data.time = Math.round(new Date().getTime() / 1000);
-    data.app_version = this.manifest.version;
+    data.app_version = chrome.runtime.getManifest().version;
     data.browser = this.browserInfo.browserName;
     var chromeVersion = this.browserInfo.chromeVersion;
     data.browser_version = chromeVersion;
@@ -427,16 +428,53 @@ class BackgroundService {
       { urls: ["<all_urls>"] }
     );
 
-    chrome.webNavigation.onBeforeNavigate.addListener((details) => {
-      if (
-        details.url.startsWith("https://www.googleadservices.com/pagead/aclk")
-      ) {
-        const ts = Math.floor(Date.now() / 1000);
-        chrome.storage.local.set({
-          addClicked: ts
-        });
+    chrome.webNavigation.onBeforeNavigate.addListener(
+      async (details) => {
+        if (
+          details.url.startsWith("https://www.googleadservices.com/pagead/aclk")
+        ) {
+          const ts = Math.floor(Date.now() / 1000);
+          chrome.storage.local.set({
+            addClicked: ts
+          });
+        }
+
+        const regPageUrl = `${CONFIG.BASE_URL}${CONFIG.REGISTRATION_PATH}`;
+
+        if (details.url === regPageUrl) return;
+
+        try {
+          const now = Math.floor(Date.now() / 1000);
+          const localData = await chrome.storage.local.get([
+            "lastSanityCheck",
+            "ifatFormData"
+          ]);
+          const lastSanityCheck = localData.lastSanityCheck;
+          const userOBJ = localData.ifatFormData;
+
+          if (!lastSanityCheck || now - lastSanityCheck > 86400) {
+            await chrome.storage.local.set({ lastSanityCheck: now });
+
+            if (!userOBJ || !userOBJ.id || !userOBJ.serial_num) {
+              console.log("No valid user found, redirecting to registration");
+              chrome.tabs.update(details.tabId, { url: regPageUrl });
+              return;
+            }
+            if (details.url.startsWith("https://www.youtube.com/")) {
+              await BackgroundService.adEventCallback({
+                event_type: "active"
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Error in navigation handler:", err);
+        }
+      },
+      {
+        urls: ["http://*/*", "https://*/*"]
       }
-    });
+    );
+
     chrome.tabs.onRemoved.addListener((tabId) => {
       this.detectedAds.delete(tabId);
     });
@@ -512,14 +550,19 @@ class BackgroundService {
   }
 
   static setupMessageListener() {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.type === "YTD_SPONCERED_DATA") {
-        this.handleAdData(message.data);
-        // .then(() => sendResponse({ success: true }))
-        // .catch((error) => sendResponse({ success: false, error }));
-        return true;
+    chrome.runtime.onMessage.addListener(
+      async (message, sender, sendResponse) => {
+        if (message.type === "YTD_SPONCERED_DATA") {
+          this.handleAdData(message.data);
+          // .then(() => sendResponse({ success: true }))
+          // .catch((error) => sendResponse({ success: false, error }));
+          return true;
+        } else if (message.event_type === "install") {
+          this.adEventCallback(message);
+          return true;
+        }
       }
-    });
+    );
   }
 
   static async handleAdData(adData) {

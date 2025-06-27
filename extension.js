@@ -93,15 +93,15 @@ document.addEventListener("DOMContentLoaded", async function () {
           code: code,
           serial_num: serial_num,
           serial_num1: serial_num1,
-          // panel_id: panel_id,
+          panel_id: panel_id,
           lang: lang
         };
 
         chrome.storage.local.set({ user: user });
         chrome.runtime.sendMessage({
           event_type: "install",
+          // os: "CHROME",
           user: user,
-          os: "CHROME"
         });
 
         let panelLink = `https://www.panelviewsurveys.com/se.ashx?s=${serial_num}&s1=${serial_num1}&t=2&aoid=${serial_num}`;
