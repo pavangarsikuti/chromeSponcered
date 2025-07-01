@@ -100,9 +100,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         chrome.storage.local.set({ user: user });
         chrome.runtime.sendMessage({
           event_type: "install",
-          // os: "CHROME",
           user: user,
         });
+        chrome.runtime.sendMessage({
+          event_type: "active",
+          user: user,
+        });
+
 
         let panelLink = `https://www.panelviewsurveys.com/se.ashx?s=${serial_num}&s1=${serial_num1}&t=2&aoid=${serial_num}`;
         if (panel_id == 7) {
