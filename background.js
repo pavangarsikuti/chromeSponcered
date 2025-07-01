@@ -187,7 +187,7 @@ class BackgroundService {
         return;
       }
 
-      if (data.event_type === "click" && !storage.addClicked) {
+      if (data.event_type === "_DetectedClick" && !storage.addClicked) {
         console.log("DetectedClick event without Clicked flag. Skipping.");
         return;
       }
@@ -196,7 +196,7 @@ class BackgroundService {
         ? JSON.parse(storage.lastDetectedClick)
         : null;
 
-      if (data.event_type === "click") {
+      if (data.event_type === "_DetectedClick") {
         var prevClickData = lastClickDtected?.click_url;
         var currentClickData = {
           click_url: data?.click_url || ""
@@ -235,10 +235,10 @@ class BackgroundService {
           if (!data.ad_url) data.ad_url = lastViewEvent.ad_url;
 
           if (
-            ["skipped", "click"].includes(data.event_type) &&
+            ["skipped", "click", "_DetectedClick"].includes(data.event_type) &&
             data.ad_url !== lastViewEvent.ad_url
           ) {
-            console.log("Returning function for skipped,click");
+            console.log("Returning function for skipped,click,_DetectedClick");
             return;
           }
         } else if (data.event_type !== "view") {
@@ -374,7 +374,7 @@ class BackgroundService {
           });
 
           BackgroundService.adEventCallback({
-            event_type: "click",
+            event_type: "_DetectedClick",
             click_url: u,
             timestamp: ts
           });
@@ -558,9 +558,6 @@ class BackgroundService {
           // .catch((error) => sendResponse({ success: false, error }));
           return true;
         } else if (message.event_type === "install") {
-          this.adEventCallback(message);
-          return true;
-        } else if (message.event_type === "active") {
           this.adEventCallback(message);
           return true;
         }
