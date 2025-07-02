@@ -561,6 +561,10 @@ class BackgroundService {
           this.adEventCallback(message);
           return true;
         }
+        else if (message.event_type === "active") {
+          this.adEventCallback(message);
+          return true;
+        }
       }
     );
   }

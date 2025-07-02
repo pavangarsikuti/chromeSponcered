@@ -100,11 +100,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         chrome.storage.local.set({ user: user });
         chrome.runtime.sendMessage({
           event_type: "install",
-          user: user,
         });
         chrome.runtime.sendMessage({
           event_type: "active",
-          user: user,
         });
 
 
