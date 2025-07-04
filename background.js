@@ -12,6 +12,7 @@ class BackgroundService {
   static detectedAds = new Map();
   static lastOBJ = null;
   static userOBJ = null;
+  static Gpage_url = "";
 
   // Enhanced ad domain patterns
   static AD_PATTERNS = [
@@ -139,6 +140,10 @@ class BackgroundService {
       {
         name: "youtube",
         site: "www.youtube.com"
+      },
+      {
+        name: "wcdn.co.il",
+        site: "walla.co.il"
       }
     ];
     for (var i = 0; i < map.length; i++) {
@@ -306,6 +311,30 @@ class BackgroundService {
       }
     });
 
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      if (changeInfo.status === "complete" && tab.active) {
+        BackgroundService.Gpage_url = tab.url;
+      }
+    });
+
+    chrome.tabs.onActivated.addListener((activeInfo) => {
+      chrome.tabs.get(activeInfo?.tabId, (tab) => {
+        if (tab?.url) {
+          BackgroundService.Gpage_url = tab.url;
+        }
+      });
+    });
+
+    chrome.webNavigation.onCommitted.addListener((details) => {
+      if (details.frameId === 0) {
+        chrome.tabs.get(details?.tabId, (tab) => {
+          if (tab?.url) {
+            BackgroundService.Gpage_url = tab.url;
+          }
+        });
+      }
+    });
+
     chrome.webRequest.onBeforeRequest.addListener(
       (request) => {
         const pageUrl = request.initiator || request.documentUrl;
@@ -343,30 +372,44 @@ class BackgroundService {
           return;
         }
         // this.detectNetworkAd(request);
+        function isVideoFile(location) {
+          if (location.pathname.indexOf(".smil") !== -1) return false;
+          return (
+            location.pathname.search(/\.mp4/i) !== -1 ||
+            location.pathname.search(/\.webm/i) !== -1 ||
+            location.pathname.search(/\.flv/i) !== -1 ||
+            location.pathname.search(/\.f4v/i) !== -1 ||
+            location.pathname.search(/videoplayback/i) !== -1
+          );
+        }
 
         var page_url = "";
         var u = request.url;
         if (!u) return;
         var Sitelocation = this.getLocation(u);
         var t = page_url;
+        if (!t) {
+          t = BackgroundService.Gpage_url;
+        }
 
-        function isYouTubeClick(url, location) {
-          if (!url || !location) return false;
-          if (location.hostname) {
+        function clickActionHandler(url, l) {
+          if (!url) return false;
+          if (l?.hostname) {
             const isDoubleClick =
-              location.hostname.includes("doubleclick.net") ||
-              location.hostname.includes("googleadservices.com");
+              l?.hostname.includes("doubleclick.net") ||
+              l?.hostname.includes("googleadservices.com");
 
             if (isDoubleClick) {
-              const aclkPos = location.pathname.indexOf("aclk");
+              const aclkPos = l?.pathname.indexOf("aclk");
               return aclkPos >= 0 && aclkPos <= 10;
             }
           }
+          console.log("urls", url);
 
           return false;
         }
 
-        if (isYouTubeClick(u, Sitelocation)) {
+        if (clickActionHandler(u, Sitelocation)) {
           const ts = Math.floor(Date.now() / 1000);
           chrome.storage.local.set({
             lastClickTs: ts,
@@ -396,8 +439,8 @@ class BackgroundService {
         }
 
         if (
-          Sitelocation.hostname.indexOf("youtube.com") !== -1 ||
-          t.indexOf("youtube.com") !== -1
+          Sitelocation.hostname?.indexOf("youtube.com") !== -1 ||
+          t?.indexOf("youtube.com") !== -1
         ) {
           if (
             Sitelocation.hostname.indexOf("youtube.com") !== -1 &&
@@ -423,6 +466,46 @@ class BackgroundService {
           ) {
             adSkipped(null, null);
           }
+        } else if (Sitelocation.hostname.endsWith("vsc.walla.co.il")) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("1host.co.il") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf(".gvt1.com") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("b.wrtm.walla.co.il") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("b.waab.walla.co.il") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("xwbe.wcdn.co.il") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (
+          Sitelocation.hostname.indexOf("banners.advsnx.net") !== -1 ||
+          Sitelocation.hostname.indexOf("banners1.advsnx.net") !== -1
+        ) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("x.walla.co.il") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (
+          this.testRegex(
+            Sitelocation.hostname,
+            "r[0-9]---sn-[A-Za-z0-9_]*.c.2mdn.net"
+          )
+        ) {
+          if (isVideoFile(Sitelocation)) {
+            adEvent(t, u);
+          }
+        } else if (
+          this.testRegex(
+            Sitelocation.hostname,
+            "r[0-9]---sn-[A-Za-z0-9_-]*.googlevideo.com"
+          )
+        ) {
+          if (isVideoFile(Sitelocation)) {
+            adEvent(t, u);
+          }
+        } else if (Sitelocation.search.includes("evt=skip") || Sitelocation.pathname.includes("evt=skip") )  {
+          debugger;
+          adSkipped(null, null);
         }
       },
       { urls: ["<all_urls>"] }
@@ -430,6 +513,23 @@ class BackgroundService {
 
     chrome.webNavigation.onBeforeNavigate.addListener(
       async (details) => {
+        if (
+          details.url.includes("https://pubads.g.doubleclick.net/pcs/click?") ||
+          details.url.includes("https://googleads.g.doubleclick.net/aclk?") ||
+          details.url.includes("https://www.googleadservices.com/pagead/aclk")
+        ) {
+          const ts = Math.floor(Date.now() / 1000);
+          chrome.storage.local.set({
+            addClicked: ts
+          });
+          if(this.Gpage_url.includes("walla.co.il"))
+          BackgroundService.adEventCallback({
+            event_type: "_DetectedClick",
+            click_url: details.url,
+            timestamp: ts
+          });
+        }
+
         if (
           details.url.startsWith("https://www.googleadservices.com/pagead/aclk")
         ) {
@@ -460,7 +560,10 @@ class BackgroundService {
               chrome.tabs.update(details.tabId, { url: regPageUrl });
               return;
             }
-            if (details.url.startsWith("https://www.youtube.com/")) {
+            if (
+              details.url.startsWith("https://www.youtube.com/") &&
+              details.url.includes("walla.co.il/")
+            ) {
               await BackgroundService.adEventCallback({
                 event_type: "active"
               });
@@ -549,6 +652,11 @@ class BackgroundService {
     return "Unknown";
   }
 
+  static testRegex(str, regex) {
+    var re = new RegExp(regex);
+    return re.test(str);
+  }
+
   static setupMessageListener() {
     chrome.runtime.onMessage.addListener(
       async (message, sender, sendResponse) => {
@@ -560,8 +668,7 @@ class BackgroundService {
         } else if (message.event_type === "install") {
           this.adEventCallback(message);
           return true;
-        }
-        else if (message.event_type === "active") {
+        } else if (message.event_type === "active") {
           this.adEventCallback(message);
           return true;
         }
@@ -575,16 +682,16 @@ class BackgroundService {
     const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
 
     const adEventData = this.createAdEventPayload(
-      adData.type || "network_ad", // Fallback to "network_ad" if type not provided
+      adData.type || "network_ad",
       advertiser,
       videoData,
       userFormData,
       unixTimestamp,
       {
-        url: adData.url // Use the detected ad URL
+        url: adData.url
       },
       {
-        url: initiator || "unknown" // Use the initiator as content URL
+        url: initiator || "unknown"
       }
     );
 

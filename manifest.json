@@ -4,7 +4,7 @@
   "manifest_version": 3,
   "description": "תוסף רייטינג של חברת יפעת",
   "permissions": [
-    "tabs",
+    "activeTab",
     "webNavigation",
     "webRequest",
     "storage"
