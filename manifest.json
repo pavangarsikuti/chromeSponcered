@@ -4,15 +4,10 @@
   "manifest_version": 3,
   "description": "תוסף רייטינג של חברת יפעת",
   "permissions": [
-    "activeTab",
-    "downloads",
-    "storage",
-    "scripting",
     "tabs",
     "webNavigation",
-    "storage",
     "webRequest",
-    "scripting"
+    "storage"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
@@ -28,18 +23,17 @@
     "service_worker": "background.js",
     "type": "module"
   },
-
   "host_permissions": [
     "http://*/*",
     "https://*/*",
     "https://panelads.ifat.com/*",
-    "http://10.40.2.63:9008/*"
+    "http://172.20.20.72:9008/*"
   ],
   "content_scripts": [
     {
       "matches": [
         "*://*.youtube.com/*",
-        "http://10.40.2.63:9008/*",
+        "http://172.20.20.72:9008/*",
         "http://*/*",
         "https://*/*"
       ],
