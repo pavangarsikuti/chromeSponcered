@@ -472,6 +472,8 @@ class BackgroundService {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (Sitelocation.hostname.indexOf(".gvt1.com") !== -1) {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf(".dxmcdn.com") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (Sitelocation.hostname.indexOf("b.wrtm.walla.co.il") !== -1) {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (Sitelocation.hostname.indexOf("b.waab.walla.co.il") !== -1) {
