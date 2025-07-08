@@ -144,7 +144,23 @@ class BackgroundService {
       {
         name: "wcdn.co.il",
         site: "walla.co.il"
-      }
+      },
+      {
+        name: "s5-s.",
+        site: "sport5.co.il"
+      },
+      {
+        name: "pas-rahav.com",
+        site: "ynet.co.il"
+      },
+      {
+        name: "xnet",
+        site: "xnet.ynet.co.il"
+      },
+      {
+        name: "one",
+        site: "one.co.il"
+      },
     ];
     for (var i = 0; i < map.length; i++) {
       if (site.indexOf(map[i].name) !== -1) return map[i].site;
@@ -350,15 +366,11 @@ class BackgroundService {
         }
 
         const ALLOWED_DOMAINS = [
-          "10.tv",
           "walla.co.il",
           "ynet.co.il",
           "sport5.co.il",
           "one.co.il",
-          "nana10.co.il",
-          "tapuz.co.il",
           "mako.co.il",
-          "reshet.tv",
           "13tv.co.il",
           "xnet.ynet.co.il",
           "youtube.com"
@@ -371,7 +383,6 @@ class BackgroundService {
         if (!isAllowed) {
           return;
         }
-        // this.detectNetworkAd(request);
         function isVideoFile(location) {
           if (location.pathname.indexOf(".smil") !== -1) return false;
           return (
@@ -392,20 +403,18 @@ class BackgroundService {
           t = BackgroundService.Gpage_url;
         }
 
-        function clickActionHandler(url, l) {
+        function clickActionHandler(url, location) {
           if (!url) return false;
-          if (l?.hostname) {
+          if (location?.hostname) {
             const isDoubleClick =
-              l?.hostname.includes("doubleclick.net") ||
-              l?.hostname.includes("googleadservices.com");
+              location?.hostname.includes("doubleclick.net") ||
+              location?.hostname.includes("googleadservices.com");
 
             if (isDoubleClick) {
-              const aclkPos = l?.pathname.indexOf("aclk");
+              const aclkPos = location?.pathname.indexOf("aclk");
               return aclkPos >= 0 && aclkPos <= 10;
             }
           }
-          console.log("urls", url);
-
           return false;
         }
 
@@ -448,9 +457,7 @@ class BackgroundService {
             Sitelocation.search.indexOf("adhost") !== -1
           ) {
             var ad_url = this.ytURL(this.getURLParameter(u, "video_id"));
-            var content_murl = this.ytURL(this.getURLParameter(u, "content_v"));
             var content_v = this.getURLParameter(u, "content_v");
-            console.log("++Ad", content_murl);
             if (!content_v || content_v.length < 6) {
               content_v = this.getURLParameter(t, "content_v");
             }
@@ -472,6 +479,8 @@ class BackgroundService {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (Sitelocation.hostname.indexOf(".gvt1.com") !== -1) {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("1host.co.il") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (Sitelocation.hostname.indexOf("b.wrtm.walla.co.il") !== -1) {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (Sitelocation.hostname.indexOf("b.waab.walla.co.il") !== -1) {
@@ -483,7 +492,44 @@ class BackgroundService {
           Sitelocation.hostname.indexOf("banners1.advsnx.net") !== -1
         ) {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.endsWith(".best-tv.com")) {
+          if (
+            Sitelocation.pathname.indexOf("VOD/KESHET/") === -1 &&
+            Sitelocation.pathname.indexOf("/ch2news/") === -1 &&
+            Sitelocation.hostname.indexOf("besttv") === -1 &&
+            isVideoFile(Sitelocation)
+          )
+            adEvent(t, u);
+        } else if (
+          Sitelocation.hostname.indexOf("mediadownload.ynet.co.il") !== -1
+        ) {
+          if (
+            Sitelocation.pathname.indexOf("ads/") !== -1 &&
+            isVideoFile(Sitelocation)
+          ) {
+            adEvent(t, u);
+          }
+        } else if (Sitelocation.hostname.endsWith("nsacdn.com")) {
+          if (isVideoFile(Sitelocation) && t.indexOf(".mako.co.il") === -1)
+            adEvent(t, u);
+        } else if (Sitelocation.hostname.endsWith("one.co.il")) {
+          if (
+            Sitelocation.pathname.indexOf("ads/") !== -1 &&
+            Sitelocation.hostname.indexOf("ads.") === -1 &&
+            isVideoFile(Sitelocation)
+          )
+            adEvent(t, u);
+        } else if (
+          Sitelocation.hostname.indexOf("jwtdigital-media.co.il") !== -1
+        ) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("s5-s.vidnt.com") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (Sitelocation.hostname.indexOf("x.walla.co.il") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("netdna-ssl.com") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("cdn1.alooma.tv") !== -1) {
           if (isVideoFile(Sitelocation)) adEvent(t, u);
         } else if (
           this.testRegex(
@@ -503,7 +549,16 @@ class BackgroundService {
           if (isVideoFile(Sitelocation)) {
             adEvent(t, u);
           }
-        } else if (Sitelocation.search.includes("evt=skip") || Sitelocation.pathname.includes("evt=skip") )  {
+        } else if (
+          Sitelocation.hostname.indexOf("progressive-video-ynet") !== -1
+        ) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (Sitelocation.hostname.indexOf("mkcf.dxmcdn.com") !== -1) {
+          if (isVideoFile(Sitelocation)) adEvent(t, u);
+        } else if (
+          Sitelocation.search.includes("evt=skip") ||
+          Sitelocation.pathname.includes("evt=skip")
+        ) {
           debugger;
           adSkipped(null, null);
         }
@@ -522,12 +577,12 @@ class BackgroundService {
           chrome.storage.local.set({
             addClicked: ts
           });
-          if(this.Gpage_url.includes("walla.co.il"))
-          BackgroundService.adEventCallback({
-            event_type: "_DetectedClick",
-            click_url: details.url,
-            timestamp: ts
-          });
+          if (!this.Gpage_url.includes("youtube.com"))
+            BackgroundService.adEventCallback({
+              event_type: "_DetectedClick",
+              click_url: details.url,
+              timestamp: ts
+            });
         }
 
         if (
@@ -560,9 +615,15 @@ class BackgroundService {
               chrome.tabs.update(details.tabId, { url: regPageUrl });
               return;
             }
+
             if (
-              details.url.startsWith("https://www.youtube.com/") &&
-              details.url.includes("walla.co.il/")
+              details.url.startsWith("https://www.youtube.com/") ||
+              details.url.includes("walla.co.il/") ||
+              details.url.includes("sport5.co.il/") ||
+              details.url.includes("13tv.co.il/") ||
+              details.url.includes("ynet.co.il/") ||
+              details.url.includes("one.co.il/") ||
+              details.url.includes("mako.co.il/")
             ) {
               await BackgroundService.adEventCallback({
                 event_type: "active"
@@ -583,14 +644,6 @@ class BackgroundService {
     });
   }
 
-  static detectNetworkAd(request) {
-    if (request.tabId === -1) return;
-    const isAd = this.AD_PATTERNS.some((pattern) => pattern.test(request.url));
-    if (isAd && !request.initiator?.includes("youtube.com")) {
-      this.processDetectedAd(request);
-    }
-  }
-
   static extractDomain(url) {
     try {
       const domain = new URL(url).hostname;
@@ -598,58 +651,6 @@ class BackgroundService {
     } catch {
       return "";
     }
-  }
-
-  static async processDetectedAd(request) {
-    if (!this.detectedAds.has(request.tabId)) {
-      this.detectedAds.set(request.tabId, new Set());
-    }
-
-    const tabAds = this.detectedAds.get(request.tabId);
-    if (tabAds.has(request.url)) return;
-
-    tabAds.add(request.url);
-
-    const adData = {
-      url: request.url,
-      timestamp: new Date().toISOString(),
-      tabId: request.tabId,
-      frameId: request.frameId,
-      type: request.type,
-      initiator: request.initiator,
-      domain: this.extractDomain(request.url),
-      adNetwork: this.detectAdNetwork(request.url)
-    };
-    const registered = await this.isUserRegistered();
-    if (registered) {
-      const userData = await chrome.storage.local.get("ifatFormData");
-      await this.handleAdData({
-        type: "network_ad",
-        advertiser: adData.domain,
-        videoData: request.url,
-        userFormData: userData.ifatFormData,
-        timestamp: adData.timestamp
-      });
-    }
-  }
-
-  static detectAdNetwork(url) {
-    const networkMap = {
-      "flashtalking.com": "Flashtalking",
-      "doubleclick.net": "Google DoubleClick",
-      "googlesyndication.com": "Google AdSense",
-      "innovid.com": "Innovid",
-      "adform.net": "Adform",
-      "criteo.com": "Criteo",
-      "taboola.com": "Taboola",
-      "outbrain.com": "Outbrain"
-    };
-
-    for (const [domain, name] of Object.entries(networkMap)) {
-      if (url.includes(domain)) return name;
-    }
-
-    return "Unknown";
   }
 
   static testRegex(str, regex) {
@@ -660,12 +661,7 @@ class BackgroundService {
   static setupMessageListener() {
     chrome.runtime.onMessage.addListener(
       async (message, sender, sendResponse) => {
-        if (message.type === "YTD_SPONCERED_DATA") {
-          this.handleAdData(message.data);
-          // .then(() => sendResponse({ success: true }))
-          // .catch((error) => sendResponse({ success: false, error }));
-          return true;
-        } else if (message.event_type === "install") {
+        if (message.event_type === "install") {
           this.adEventCallback(message);
           return true;
         } else if (message.event_type === "active") {
@@ -674,90 +670,6 @@ class BackgroundService {
         }
       }
     );
-  }
-
-  static async handleAdData(adData) {
-    const { advertiser, videoData, userFormData, timestamp, initiator } =
-      adData;
-    const unixTimestamp = Math.floor(new Date(timestamp).getTime() / 1000);
-
-    const adEventData = this.createAdEventPayload(
-      adData.type || "network_ad",
-      advertiser,
-      videoData,
-      userFormData,
-      unixTimestamp,
-      {
-        url: adData.url
-      },
-      {
-        url: initiator || "unknown"
-      }
-    );
-
-    await this.sendAdEvent(adEventData);
-  }
-
-  static createAdEventPayload(
-    type,
-    advertiser,
-    videoData,
-    userFormData,
-    timestamp
-  ) {
-    let site = "unknown";
-    let ad_urll = advertiser.url;
-    let content_urll = videoData.url;
-    try {
-      if ((videoData.url && videoData.url !== "unknown") || videoData) {
-        let rawUrl = videoData.url || videoData;
-        const url = new URL(rawUrl);
-        const hostname = url.hostname;
-        if (hostname.includes("youtube.com")) {
-          site = hostname;
-        } else {
-          site = hostname.replace(/^www\./, "");
-        }
-      }
-    } catch (e) {
-      console.warn("Couldn't parse site URL:", videoData?.url || videoData);
-    }
-
-    if (advertiser) {
-      ad_urll = advertiser;
-    } else {
-      ad_urll = advertiser.url;
-    }
-    if (videoData) {
-      content_urll = videoData;
-    } else {
-      content_urll = videoData.url;
-    }
-    console.log("urls", ad_urll, content_urll);
-
-    return {
-      event_type: type,
-      ad_url: ad_urll,
-      content_url: content_urll,
-      ad_type: type,
-      timestamp,
-      app_version: this.manifest.version,
-      browser: this.browserInfo.browserName,
-      browser_version: this.browserInfo.chromeVersion,
-      os: this.browserInfo.os,
-      user: {
-        birth_date: userFormData.birth_date,
-        code: userFormData.code,
-        gender: userFormData.gender,
-        id: userFormData?.id,
-        lang: userFormData.lang,
-        location: userFormData.location,
-        panel_id: userFormData.panel_id,
-        serial_num: userFormData.serial_num,
-        serial_num1: userFormData.serial_num1
-      },
-      site: site // Now dynamic based on initiator
-    };
   }
 
   static async sendAdEvent(payload) {
