@@ -12,7 +12,7 @@ class BackgroundService {
   static detectedAds = new Map();
   static lastOBJ = null;
   static userOBJ = null;
-  static Gpage_url = "";
+  static globalPageUrl = new Map();
 
   // Enhanced ad domain patterns
   static AD_PATTERNS = [
@@ -160,7 +160,7 @@ class BackgroundService {
       {
         name: "one",
         site: "one.co.il"
-      },
+      }
     ];
     for (var i = 0; i < map.length; i++) {
       if (site.indexOf(map[i].name) !== -1) return map[i].site;
@@ -328,31 +328,35 @@ class BackgroundService {
     });
 
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-      if (changeInfo.status === "complete" && tab.active) {
-        BackgroundService.Gpage_url = tab.url;
+      if (changeInfo.status === "complete" && tab.url) {
+        BackgroundService.globalPageUrl.set(tabId, tab.url);
       }
+    });
+
+    chrome.tabs.onRemoved.addListener((tabId) => {
+      BackgroundService.globalPageUrl.delete(tabId);
     });
 
     chrome.tabs.onActivated.addListener((activeInfo) => {
       chrome.tabs.get(activeInfo?.tabId, (tab) => {
         if (tab?.url) {
-          BackgroundService.Gpage_url = tab.url;
+          BackgroundService.globalPageUrl.set(activeInfo.tabId, tab.url);
         }
       });
     });
 
     chrome.webNavigation.onCommitted.addListener((details) => {
       if (details.frameId === 0) {
-        chrome.tabs.get(details?.tabId, (tab) => {
+        chrome.tabs.get(details.tabId, (tab) => {
           if (tab?.url) {
-            BackgroundService.Gpage_url = tab.url;
+            BackgroundService.globalPageUrl.set(details.tabId, tab.url);
           }
         });
       }
     });
 
     chrome.webRequest.onBeforeRequest.addListener(
-      (request) => {
+      async (request) => {
         const pageUrl = request.initiator || request.documentUrl;
         if (!pageUrl) return;
 
@@ -383,6 +387,10 @@ class BackgroundService {
         if (!isAllowed) {
           return;
         }
+
+        const tabId = request.tabId;
+        if (tabId === -1) return;
+
         function isVideoFile(location) {
           if (location.pathname.indexOf(".smil") !== -1) return false;
           return (
@@ -394,13 +402,17 @@ class BackgroundService {
           );
         }
 
-        var page_url = "";
-        var u = request.url;
+        const u = request.url;
         if (!u) return;
-        var Sitelocation = this.getLocation(u);
-        var t = page_url;
-        if (!t) {
-          t = BackgroundService.Gpage_url;
+        const Sitelocation = this.getLocation(u);
+        let t = ""; //it is page url or page address
+        try {
+          const tab = await chrome.tabs.get(request.tabId);
+          if (tab?.url) {
+            t = tab.url;
+          }
+        } catch (err) {
+          t = BackgroundService.globalPageUrl.get(request.tabId) || "";
         }
 
         function clickActionHandler(url, location) {
@@ -559,7 +571,6 @@ class BackgroundService {
           Sitelocation.search.includes("evt=skip") ||
           Sitelocation.pathname.includes("evt=skip")
         ) {
-          debugger;
           adSkipped(null, null);
         }
       },
@@ -577,20 +588,10 @@ class BackgroundService {
           chrome.storage.local.set({
             addClicked: ts
           });
-          if (!this.Gpage_url.includes("youtube.com"))
             BackgroundService.adEventCallback({
               event_type: "_DetectedClick",
               click_url: details.url,
               timestamp: ts
-            });
-        }
-
-        if (
-          details.url.startsWith("https://www.googleadservices.com/pagead/aclk")
-        ) {
-          const ts = Math.floor(Date.now() / 1000);
-          chrome.storage.local.set({
-            addClicked: ts
           });
         }
 
